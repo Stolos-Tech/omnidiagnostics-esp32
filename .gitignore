@@ -1,0 +1,19 @@
+# PlatformIO
+.pio/
+.pioenvs/
+.piolibdeps/
+
+# IDE
+.vscode/
+.idea/
+*.code-workspace
+
+# Build artifacts
+*.bin
+*.elf
+*.map
+*.o
+
+# OS
+.DS_Store
+Thumbs.db
