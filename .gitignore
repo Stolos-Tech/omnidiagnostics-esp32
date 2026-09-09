@@ -51,8 +51,9 @@ server/board_relay.json
 gateway/gw.out
 *.json.gz
 
-# ── Claude local settings ─────────────────────────────────────
+# ── Claude local settings / runtime ───────────────────────────
 .claude/settings.local.json
+.claude/*.lock
 
 # ── OS ────────────────────────────────────────────────────────
 .DS_Store
