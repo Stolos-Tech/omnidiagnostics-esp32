@@ -1,0 +1,14 @@
+[Unit]
+Description=ESP32-OS server dashboard (APEX web UI)
+After=network-online.target tailscaled.service
+Wants=network-online.target
+
+[Service]
+ExecStart=__DEST__/venv/bin/python __DEST__/dashboard.py
+WorkingDirectory=__DEST__
+User=espos
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

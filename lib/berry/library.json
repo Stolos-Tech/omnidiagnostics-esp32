@@ -1,0 +1,16 @@
+{
+  "name": "berry",
+  "version": "1.0.0-esp32os",
+  "description": "Вшитий інтерпретатор Berry (berry-lang/berry) для esp32-os. Джерела з src/, таблиці констант згенеровано coc у generate/. Конфіг — src/berry_conf.h.",
+  "license": "MIT",
+  "frameworks": "*",
+  "platforms": "*",
+  "build": {
+    "flags": [
+      "-std=gnu99",
+      "-Wno-unused-parameter",
+      "-Wno-format"
+    ],
+    "srcFilter": ["+<*.c>"]
+  }
+}

@@ -1,0 +1,14 @@
+[Unit]
+Description=ESP32-OS secure gateway (phone <-> board proxy)
+After=network-online.target tailscaled.service
+Wants=network-online.target
+
+[Service]
+ExecStart=__DEST__/venv/bin/python __DEST__/gateway.py
+WorkingDirectory=__DEST__
+User=espos
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

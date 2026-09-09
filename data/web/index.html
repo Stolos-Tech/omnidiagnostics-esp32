@@ -1,0 +1,1333 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>esp32-os remote</title>
+<style>
+  /* Palette sampled from the APEX Mission-Control reference: near-black, mint-green
+     primary (#00FFAB), amber warn (#FDD036), red crit — restrained, mono, HUD. */
+  /* Палітра ТОЧНО як Android-Apex (ui/ApexTheme.kt) — паритет веб↔моб. */
+  :root{ --bg:#0B0D0F; --bg2:#12171A; --panel:rgba(255,255,255,.028); --panel2:rgba(255,255,255,.055);
+         --line:#232C30; --line2:rgba(255,255,255,.20); --text:#E7EEF0; --ink2:#B7C4C6; --dim:#7D8B8C;
+         --accent:#00FFAB; --accent2:#00d492; --accent-ink:#0B0D0F; --violet:#00d492;
+         --good:#00FFAB; --bad:#FF5A57; --warn:#FDD036; --r:12px; --rs:9px; --ink:rgba(6,9,11,.6);
+         --mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace; }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  /* Плавність ближче до нативного Android (безпечні, з reduced-motion-гардом) */
+  html{ scroll-behavior:smooth; }
+  .card,.onboard{ animation:cardIn .28s cubic-bezier(.2,.7,.3,1) both; }
+  @keyframes cardIn{ from{ opacity:0; transform:translateY(6px); } to{ opacity:1; transform:none; } }
+  button:active,.tile:active{ transform:scale(.97); }
+  @media (prefers-reduced-motion:reduce){ *,html{ scroll-behavior:auto!important; animation:none!important; transition:none!important; } }
+  html,body{ margin:0; height:100%; }
+  body{ font-family:var(--mono); color:var(--text); min-height:100vh; display:flex; flex-direction:column;
+        background:
+          linear-gradient(rgba(255,255,255,.018) 1px,transparent 1px) 0 0/100% 32px,
+          linear-gradient(90deg,rgba(255,255,255,.014) 1px,transparent 1px) 0 0/32px 100%,
+          radial-gradient(760px 400px at 12% -6%,rgba(0,255,171,.06),transparent 60%),
+          linear-gradient(180deg,var(--bg2),var(--bg));
+        background-attachment:fixed; }
+  header{ position:sticky; top:0; z-index:10; display:flex; justify-content:space-between; align-items:center;
+          padding:11px 16px; background:rgba(9,13,20,.72); border-bottom:1px solid var(--line);
+          -webkit-backdrop-filter:blur(14px) saturate(1.3); backdrop-filter:blur(14px) saturate(1.3); }
+  header h1{ margin:0; font-family:var(--mono); font-size:13px; font-weight:700; letter-spacing:.18em; text-transform:uppercase; color:var(--text); }
+  header h1::before{ content:"\25CF "; color:var(--accent); font-size:9px; vertical-align:1px; }
+  .hgroup{ display:flex; align-items:center; gap:12px; }
+  #ico{ display:inline-flex; align-items:center; gap:8px; } #ico svg{ display:block; }
+  #dot{ width:9px; height:9px; border-radius:50%; background:var(--bad); flex:none; transition:.2s; }
+  #dot.on{ background:var(--good); box-shadow:0 0 10px var(--good); }
+  #info{ width:30px; height:30px; border-radius:50%; border:1px solid var(--line); background:var(--panel2);
+         color:var(--accent); font-size:15px; font-weight:700; display:flex; align-items:center; justify-content:center; cursor:pointer; padding:0; }
+  #info.on{ background:var(--accent); color:var(--accent-ink); border-color:transparent; }
+  main{ flex:1; width:100%; max-width:1080px; margin:0 auto; padding:14px; }
+  .glass,.card,.onboard,footer{ -webkit-backdrop-filter:blur(11px); backdrop-filter:blur(11px); }
+  .card{ background:var(--panel); border:1px solid var(--line); border-radius:var(--r); padding:16px; margin-bottom:14px; }
+  label{ display:block; font-size:12px; color:var(--dim); margin-bottom:6px; }
+  input,select{ width:100%; font-size:16px; padding:12px 13px; border-radius:var(--rs); border:1px solid var(--line);
+                background:var(--ink); color:var(--text); font-family:inherit; }
+  #pin{ font-size:24px; letter-spacing:8px; text-align:center; }
+  input.text{ font-size:16px; letter-spacing:normal; text-align:left; }
+  input:focus,select:focus,textarea:focus{ outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(125,211,252,.15); }
+  button{ font-size:15px; border:none; border-radius:var(--rs); padding:13px; color:var(--accent-ink);
+          background:linear-gradient(180deg,var(--accent),var(--accent2)); font-weight:650; cursor:pointer; width:100%;
+          font-family:inherit; transition:filter .12s,transform .06s,box-shadow .12s; }
+  button:hover{ box-shadow:0 6px 18px -9px var(--accent2); }
+  button:active{ filter:brightness(.9); transform:translateY(1px); }
+  button.sec{ background:var(--panel2); color:var(--text); border:1px solid var(--line); }
+  button.sec:hover{ border-color:var(--line2); box-shadow:none; }
+  button:focus-visible, .tile:focus-visible, #info:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+  .msg{ font-size:13px; margin-top:10px; min-height:16px; } .msg.err{ color:var(--bad); } .msg.ok{ color:var(--good); }
+  .hidden{ display:none!important; }
+  .hint{ font-size:12px; color:var(--dim); text-align:center; margin-top:8px; }
+  #help{ border-left:3px solid var(--accent); }
+  #help h2{ font-size:15px; margin:0 0 8px; color:var(--accent); }
+  #help .sec{ margin-bottom:8px; font-size:13.5px; line-height:1.45; }
+  #help .sec b{ display:block; font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--dim); margin-bottom:2px; }
+  #conbody,#scrout{ max-height:180px; overflow:auto; font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px;
+             white-space:pre-wrap; word-break:break-all; margin:8px 0 0; color:#a7f3d0; background:var(--ink);
+             padding:9px; border-radius:var(--rs); border:1px solid var(--line); }
+  textarea#scrcode{ width:100%; font-family:ui-monospace,Menlo,Consolas,monospace; font-size:13px;
+             background:var(--ink); color:var(--text); border:1px solid var(--line); border-radius:var(--rs); padding:9px; resize:vertical; }
+  .row2{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; }
+
+  /* -- "current page" bar (shared state, board == phone) -- */
+  .onboard{ display:flex; align-items:center; gap:11px; width:100%; max-width:1080px; margin:14px auto 0;
+            padding:11px 16px; border-radius:var(--r); background:var(--panel); border:1px solid var(--line); }
+  .onboard .eyebrow{ font-size:10px; letter-spacing:.13em; text-transform:uppercase; color:var(--accent); }
+  .onboard .name{ font-size:15px; font-weight:600; margin-top:1px; word-break:break-word; }
+  .onboard .pulse{ width:9px; height:9px; border-radius:50%; background:var(--dim); flex:none; }
+  .onboard .pulse.live{ background:var(--accent); box-shadow:0 0 8px var(--accent); animation:bp 2.4s ease-in-out infinite; }
+  @keyframes bp{ 50%{ opacity:.4 } }
+
+  /* -- APEX mission-control HUD accents: mono technical labels + corner frames -- */
+  .onboard{ position:relative; font-family:var(--mono); }
+  .onboard .eyebrow{ font-size:9.5px; letter-spacing:.16em; }
+  .onboard .name{ font-family:var(--mono); font-size:14px; }
+  #pagelabel::before{ content:"\25B8 "; color:var(--accent); }   /* ▸ HUD caret */
+  .onboard::before,.onboard::after{ content:""; position:absolute; width:11px; height:11px;
+    border:1.5px solid var(--accent); opacity:.55; pointer-events:none; }
+  .onboard::before{ top:6px; left:6px; border-right:0; border-bottom:0; }
+  .onboard::after { bottom:6px; right:6px; border-left:0; border-top:0; }
+  .tools-title{ font-family:var(--mono); }
+  .tools .card > div:first-child b{ font-family:var(--mono); text-transform:uppercase; font-size:12px; letter-spacing:.08em; }
+
+  /* -- APEX left nav rail (desktop only) -- */
+  .rail{ display:none; }
+  @media(min-width:900px){
+    body{ padding-left:46px; }
+    .rail{ display:flex; position:fixed; left:0; top:0; bottom:0; width:46px; z-index:11;
+           flex-direction:column; align-items:center; justify-content:space-between; padding:14px 0;
+           background:rgba(9,13,15,.85); border-right:1px solid var(--line); cursor:pointer;
+           -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px); }
+    .rail-mark{ color:var(--accent); font-size:15px; }
+    .rail-txt{ writing-mode:vertical-rl; transform:rotate(180deg); font-family:var(--mono);
+               font-size:11px; letter-spacing:.28em; text-transform:uppercase; color:var(--dim); }
+    .rail-foot{ color:var(--good); font-size:9px; }
+    .rail:hover{ background:rgba(0,255,171,.06); border-right-color:var(--line2); }
+  }
+  /* -- header brand + coded system subline -- */
+  .brand{ display:flex; flex-direction:column; gap:2px; min-width:0; }
+  .sysline{ font-family:var(--mono); font-size:10px; letter-spacing:.03em; color:var(--dim);
+            white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:56vw; }
+  .sysline .ok{ color:var(--good); } .sysline .wn{ color:var(--warn); } .sysline .bd{ color:var(--bad); }
+  /* -- onboard hero metric (big tabular numeral) -- */
+  .hero{ text-align:right; font-family:var(--mono); line-height:1; flex:none; }
+  .hero b{ font-size:30px; font-weight:600; letter-spacing:-.01em; color:var(--accent); font-variant-numeric:tabular-nums; }
+  .hero .hu{ font-size:11px; color:var(--dim); margin-left:3px; }
+  /* -- coded micro-footer -- */
+  .microft{ font-family:var(--mono); font-size:10px; letter-spacing:.06em; color:var(--dim); text-align:center;
+            padding:8px 14px 2px; opacity:.75; max-width:760px; margin:0 auto; width:100%;
+            white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  /* -- segmented bar meters (APEX diagnostics) -- */
+  .segrow{ margin:9px 0 4px; }
+  .segrow .sl{ display:flex; justify-content:space-between; font-family:var(--mono); font-size:11px; color:var(--dim); margin-bottom:4px; }
+  .segrow .sl b{ color:var(--text); font-weight:400; }
+  .seg{ display:flex; gap:2px; }
+  .seg i{ flex:1; height:7px; border-radius:1px; background:var(--line); }
+  .seg i.on{ background:var(--accent); } .seg i.wn{ background:var(--warn); } .seg i.bd{ background:var(--bad); }
+
+  /* -- tiles (selectable) / rows (info) -- */
+  #menu.grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  @media(min-width:560px){ #menu.grid{ grid-template-columns:repeat(3,1fr); } }
+  .tile{ position:relative; background:var(--panel2); border:1px solid var(--line); border-radius:var(--rs);
+         padding:14px 30px 14px 14px; min-height:58px; display:flex; align-items:center; font-size:14.5px; line-height:1.3;
+         cursor:pointer; transition:border-color .14s,transform .1s,box-shadow .14s,background .14s; }
+  .tile:hover{ border-color:var(--line2); transform:translateY(-1px); }
+  .tile:active{ transform:scale(.98); }
+  .tile.sel{ border-color:var(--accent); background:rgba(125,211,252,.10); color:var(--text);
+             box-shadow:0 0 0 1px var(--accent) inset, 0 12px 28px -16px var(--accent); }
+  .tile .chev{ position:absolute; right:11px; top:50%; transform:translateY(-50%); color:var(--dim); font-size:16px; transition:.14s; }
+  .tile:hover .chev{ color:var(--accent); }
+  #menu.list{ display:block; }
+  #menu.list .row{ padding:13px 14px; border-radius:var(--rs); margin-bottom:8px; background:var(--panel2);
+                   border:1px solid var(--line); font-size:14.5px; }
+  #menu.list .row.sel{ border-color:var(--accent); color:var(--accent); }
+  /* APEX status row: LABEL ···· [ TAG ] with dotted leader */
+  #menu.list .row.kv{ display:flex; align-items:baseline; gap:9px; font-family:var(--mono); }
+  #menu.list .row.kv .k{ color:var(--dim); text-transform:uppercase; font-size:11.5px; letter-spacing:.05em; white-space:nowrap; }
+  #menu.list .row.kv .lead{ flex:1; border-bottom:1px dotted var(--line2); align-self:center; min-width:14px; }
+  #menu.list .row.kv .v{ font-size:13px; white-space:nowrap; color:var(--text); }
+  #menu.list .row.hdr{ background:none; border:0; margin:8px 0 0; padding:4px 4px 3px; color:var(--accent);
+                       font-family:var(--mono); text-transform:uppercase; letter-spacing:.1em; font-size:11px; }
+  .tag{ font-family:var(--mono); font-size:12px; padding:1px 8px; border-radius:5px; border:1px solid var(--line2); color:var(--dim); }
+  .tag.go{ color:var(--good); border-color:var(--good); }
+  .tag.warn{ color:var(--warn); border-color:var(--warn); }
+  .tag.bad{ color:var(--bad); border-color:var(--bad); }
+
+  /* -- responsive workspace: control column + tools sidebar -- */
+  /* insurance vs horizontal overflow on real narrow phones (flex items must shrink) */
+  html,body{ overflow-x:hidden; }
+  #menu.list .row.kv .k{ min-width:0; overflow:hidden; text-overflow:ellipsis; }
+  #menu.list .row.kv .v{ min-width:0; }
+  .tools .card > div:first-child > span{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .tools-title{ font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--dim); margin:2px 2px 10px; }
+  @media(min-width:900px){
+    #panel{ display:grid; grid-template-columns:minmax(0,1fr) 360px; gap:16px; align-items:start; }
+    #panel .primary{ min-width:0; }
+    #panel .tools{ position:sticky; top:68px; }
+    #auth{ max-width:440px; margin-left:auto; margin-right:auto; }
+  }
+
+  footer{ position:sticky; bottom:0; z-index:9; display:flex; gap:9px; width:100%; max-width:760px; margin:0 auto;
+          padding:10px 14px calc(10px + env(safe-area-inset-bottom));
+          background:rgba(9,13,20,.82); border-top:1px solid var(--line); }
+  footer button{ padding:14px 8px; font-size:15px; min-height:48px; }
+  footer .navbtn{ flex:0 0 auto; width:58px; font-size:17px; }
+  footer .okbtn{ flex:1; letter-spacing:.04em; }
+
+  .toast{ position:fixed; left:50%; bottom:calc(80px + env(safe-area-inset-bottom)); transform:translate(-50%,10px);
+          background:rgba(13,19,28,.92); -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px);
+          border:1px solid var(--accent); color:var(--text); padding:10px 16px; border-radius:11px; font-size:13px;
+          opacity:0; pointer-events:none; transition:opacity .2s,transform .2s; z-index:30; max-width:88vw; text-align:center; }
+  .toast.show{ opacity:1; transform:translate(-50%,0); }
+
+  /* -- tool cards: restrained APEX framing (uniform hairline, green on open) -- */
+  .tools .card{ border-left:2px solid var(--line2); }
+  .tools .card > div:first-child b{ letter-spacing:.04em; }
+
+  /* -- live "scanning" pulse for loading states -- */
+  @keyframes scan{ 0%,100%{ opacity:.4 } 50%{ opacity:1 } }
+  .scanning{ animation:scan 1.1s ease-in-out infinite; color:var(--accent)!important; }
+  header h1{ cursor:pointer; user-select:none; }  /* easter-egg target */
+
+  @media(prefers-reduced-motion:reduce){ *{ transition:none!important; animation:none!important; } }
+</style>
+</head>
+<body>
+<div class="rail" id="rail" title="Back to launcher">
+  <span class="rail-mark">&#9670;</span>
+  <span class="rail-txt">ESP32&middot;OS</span>
+  <span class="rail-foot" id="railstat">&#9679;</span>
+</div>
+
+<header>
+  <div class="brand">
+    <h1>esp32-os</h1>
+    <div id="sysline" class="sysline">// booting&hellip;</div>
+  </div>
+  <div class="hgroup">
+    <span id="ico"></span>
+    <button id="info" title="Help" aria-label="Help">&#9432;</button>
+    <div id="dot" title="ws"></div>
+  </div>
+</header>
+
+<div class="onboard" id="onboard">
+  <span class="pulse" id="pulse"></span>
+  <div style="flex:1;min-width:0">
+    <div class="eyebrow">ACTIVE MODULE &middot; BOARD &equiv; PHONE</div>
+    <div class="name" id="pagelabel">-</div>
+  </div>
+  <div class="hero" id="hero"><b id="heroVal">--</b><span class="hu" id="heroUnit">mV</span></div>
+</div>
+
+<main>
+  <!-- Step 1: PIN -->
+  <section id="auth" class="card">
+    <label>PIN from board screen</label>
+    <input id="pin" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="000000">
+    <div style="height:12px"></div>
+    <button id="connect">Log in</button>
+    <div id="authmsg" class="msg"></div>
+  </section>
+
+  <!-- Step 2: app -->
+  <section id="panel" class="hidden">
+    <div class="primary">
+    <div id="help" class="card hidden"></div>
+    <div id="menu" class="grid"></div>
+
+    <!-- Special input panels (shown per page) -->
+    <div id="wifipass" class="card hidden">
+      <label>Password for <b id="passssid"></b></label>
+      <input id="wifipw" class="text" type="password" placeholder="WiFi password" autocomplete="off">
+      <div style="height:10px"></div><button id="wifisend">Connect</button>
+    </div>
+
+    <div id="httpbox" class="card hidden">
+      <label>Device URL</label>
+      <input id="httpurl" class="text" type="text" placeholder="192.168.1.50/status" autocomplete="off">
+      <div style="height:10px"></div><button id="httpsend">GET</button>
+    </div>
+
+    <div id="scanbox" class="card hidden">
+      <label>Range (e.g. 192.168.0.0/24)</label>
+      <input id="scanrange" class="text" type="text" placeholder="192.168.1.0/24" autocomplete="off">
+      <div style="height:6px"></div><button id="scanrangesend" class="sec">Scan range</button>
+      <div style="height:12px"></div>
+      <label>Ports for details</label>
+      <input id="scanports" class="text" type="text" placeholder="80,443,22,8080" autocomplete="off">
+      <div style="height:6px"></div><button id="scanportssend" class="sec">Set ports</button>
+    </div>
+
+    <div id="dnsbox" class="card hidden">
+      <label>Hostname</label>
+      <input id="dnshost" class="text" type="text" placeholder="example.com" autocomplete="off">
+      <div style="height:10px"></div><button id="dnssend">Resolve</button>
+    </div>
+
+    <div id="wolbox" class="card hidden">
+      <label>MAC address</label>
+      <input id="wolmac" class="text" type="text" placeholder="AA:BB:CC:DD:EE:FF" autocomplete="off">
+      <div style="height:10px"></div><button id="wolsend">Wake</button>
+    </div>
+
+    <div id="postbox" class="card hidden">
+      <label>URL</label>
+      <input id="posturl" class="text" type="text" placeholder="192.168.1.50/api" autocomplete="off">
+      <div style="height:6px"></div><button id="posturlsend" class="sec">Set URL</button>
+      <div style="height:10px"></div>
+      <label>Body (JSON)</label>
+      <input id="postbody" class="text" type="text" placeholder='{"on":true}' autocomplete="off">
+      <div style="height:6px"></div><button id="postbodysend">POST</button>
+    </div>
+
+    <div id="tcpbox" class="card hidden">
+      <label>Target (host:port)</label>
+      <input id="tcptarget" class="text" type="text" placeholder="192.168.1.1:23" autocomplete="off">
+      <div style="height:6px"></div><button id="tcptargetsend" class="sec">Connect</button>
+      <div style="height:10px"></div>
+      <label>Line</label>
+      <input id="tcpline" class="text" type="text" placeholder="GET / HTTP/1.0" autocomplete="off">
+      <div style="height:6px"></div><button id="tcplinesend">Send</button>
+    </div>
+
+    <div id="probebox" class="card hidden">
+      <label id="probelabel">Target</label>
+      <input id="probeval" class="text" type="text" placeholder="example.com" autocomplete="off">
+      <div style="height:10px"></div><button id="probesend">Set target</button>
+    </div>
+
+    <div id="setbox" class="card hidden">
+      <label>mDNS name (.local) &mdash; stable address regardless of DHCP IP</label>
+      <input id="mdnsnameinp" class="text" type="text" placeholder="wlan-device" autocomplete="off">
+      <div class="row2" style="margin-top:8px">
+        <button id="mdnsset">Set name</button>
+        <button id="mdnson" class="sec">mDNS on</button>
+        <button id="mdnsoff" class="sec">mDNS off</button>
+      </div>
+      <div style="height:12px"></div>
+      <label>Telegram bot URL (host:port) &mdash; board pushes reports here</label>
+      <input id="boturlinp" class="text" type="text" placeholder="192.168.50.236:8000" autocomplete="off">
+      <div style="height:8px"></div><button id="botset" class="sec">Set bot URL</button>
+    </div>
+
+    <div id="status" class="msg"></div>
+    <div class="hint">Tap a tile &middot; or drive it with the buttons below. It won't bite.</div>
+    </div><!-- /primary -->
+
+    <div class="tools">
+    <div class="tools-title">[ TOOLS &middot; MONITORS ]</div>
+    <div id="console" class="card">
+      <div id="conhead" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center">
+        <b>Console (log)</b><span id="concount" style="color:var(--dim);font-size:13px">0</span>
+      </div>
+      <pre id="conbody" class="hidden"></pre>
+    </div>
+
+    <div id="shared" class="card">
+      <div id="shhead" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center">
+        <b>Shared data</b><span style="color:var(--dim);font-size:13px">reuse &middot; no rescan</span>
+      </div>
+      <div id="shbody" class="hidden">
+        <div id="shsd" class="hint" style="text-align:left;margin-bottom:6px"></div>
+        <div id="shhosts"></div>
+        <div id="shnets" style="margin-top:8px"></div>
+        <div id="shmsg" class="msg"></div>
+      </div>
+    </div>
+
+    <div id="sdcard" class="card">
+      <div id="sdhead" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center">
+        <b>SD Vault</b><span style="color:var(--dim);font-size:13px">mount &middot; dump &middot; sync</span>
+      </div>
+      <div id="sdbody" class="hidden">
+        <div id="sdstat" class="hint" style="text-align:left;margin-bottom:8px"></div>
+        <div class="row2" style="margin-bottom:8px">
+          <button id="sdmount">Mount</button>
+          <button id="sdeject" class="sec hidden">Eject</button>
+          <button id="sdrefresh" class="sec">Refresh</button>
+          <button id="sdtest" class="sec">Self-test</button>
+        </div>
+        <div id="sdfiles"></div>
+        <div id="sdmsg" class="msg"></div>
+      </div>
+    </div>
+
+    <div id="graphs" class="card">
+      <div id="grhead" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center">
+        <b>Graphs</b><span style="color:var(--dim);font-size:13px">battery / channels</span>
+      </div>
+      <div id="grbody" class="hidden">
+        <div style="font-size:12px;color:var(--dim);margin:6px 0 2px">Battery voltage (V), last samples</div>
+        <canvas id="battchart" style="width:100%;height:90px;display:block"></canvas>
+        <div style="font-size:12px;color:var(--dim);margin:12px 0 2px">APs per WiFi channel (open Air &rarr; WiFi Analyzer to fill)</div>
+        <canvas id="chanchart" style="width:100%;height:110px;display:block"></canvas>
+        <div style="font-size:12px;color:var(--dim);margin:12px 0 2px">STA link RSSI (dBm) over time</div>
+        <canvas id="rssichart" style="width:100%;height:90px;display:block"></canvas>
+        <div style="font-size:12px;color:var(--dim);margin:12px 0 2px">2.4GHz spectrum &mdash; nRF24 channel occupancy <span id="nrfstat" style="color:var(--accent)"></span></div>
+        <canvas id="nrfchart" style="width:100%;height:104px;display:block"></canvas>
+        <div style="font-size:12px;color:var(--dim);margin:12px 0 2px">Sub-GHz spectrum &mdash; CC1101 RSSI, 300&ndash;928 MHz <span id="sgstat" style="color:var(--accent)"></span></div>
+        <canvas id="sgchart" style="width:100%;height:104px;display:block"></canvas>
+      </div>
+    </div>
+
+    <div id="stats" class="card">
+      <div id="sthead" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center">
+        <b>Stats</b><span style="color:var(--dim);font-size:13px">resources / health</span>
+      </div>
+      <div id="stbody" class="hidden">
+        <div id="stgrid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;margin-top:10px;font-size:13px"></div>
+        <div id="stmsg" class="msg"></div>
+      </div>
+    </div>
+
+    <div id="scripts" class="card">
+      <div id="scrhead" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center">
+        <b>Scripts (.be)</b><span style="color:var(--dim);font-size:13px">editor</span>
+      </div>
+      <div id="scrbody" class="hidden">
+        <div id="scrlist" style="margin:8px 0"></div>
+        <label style="margin-top:6px">Module (category)</label>
+        <select id="scrcat" class="text" style="width:100%"></select>
+        <div style="height:8px"></div>
+        <input id="scrname" class="text" placeholder="name.be" autocomplete="off">
+        <textarea id="scrcode" rows="9" spellcheck="false"></textarea>
+        <button id="scrrun" style="margin-top:8px">Run now (no upload)</button>
+        <pre id="scrout" class="hidden" style="max-height:150px;overflow:auto;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;white-space:pre-wrap;word-break:break-all;margin:8px 0 0;color:#9fe8c0;background:var(--panel2);padding:8px;border-radius:8px"></pre>
+        <div class="row2" style="margin-top:8px">
+          <button id="scrsave" class="sec">Save</button>
+          <button id="scrnew" class="sec">New</button>
+          <button id="scrdel" class="sec">Delete</button>
+        </div>
+        <div id="scrmsg" class="msg"></div>
+      </div>
+    </div>
+
+    <div id="reports" class="card">
+      <div id="rephead" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center">
+        <b>Reports</b><span style="color:var(--dim);font-size:13px">scan snapshots</span>
+      </div>
+      <div id="repbody" class="hidden">
+        <div class="row2" style="margin-bottom:8px">
+          <button id="repsave">Save view</button>
+          <button id="repexport" class="sec">Export all</button>
+          <button id="repsync" class="sec">&rarr; Telegram</button>
+        </div>
+        <div id="replist" style="margin:8px 0"></div>
+        <div id="repmsg" class="msg"></div>
+      </div>
+    </div>
+
+    <div id="power" class="card">
+      <div id="pwrhead" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center">
+        <b>Power</b><span style="color:var(--dim);font-size:13px">screen / reboot</span>
+      </div>
+      <div id="pwrbody" class="hidden">
+        <div class="row2" style="margin-bottom:8px">
+          <button id="pwrpassive" class="sec">Passive (screen off)</button>
+          <button id="pwrreboot" class="sec">Reboot</button>
+        </div>
+        <div class="hint" style="text-align:left">Passive: board keeps running &amp; networking, screen off. Press any board button to wake the screen. Reboot replaces the dead RST button.</div>
+        <div id="pwrmsg" class="msg"></div>
+      </div>
+    </div>
+
+    <div id="theme" class="card">
+      <div id="thhead" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center">
+        <b>Theme</b><span style="color:var(--dim);font-size:13px">board colours</span>
+      </div>
+      <div id="thbody" class="hidden">
+        <div class="hint" style="text-align:left;margin-bottom:8px">Full-colour palettes for the board screen (our edge over mono Flipper). Saved on the device.</div>
+        <div id="thlist" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+        <div id="thmsg" class="msg"></div>
+      </div>
+    </div>
+
+    <div id="wifimgr" class="card">
+      <div id="wmhead" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center">
+        <b>Saved WiFi</b><span style="color:var(--dim);font-size:13px">auto-connect</span>
+      </div>
+      <div id="wmbody" class="hidden">
+        <div class="hint" style="text-align:left">Toggle which known networks the board joins automatically on boot.</div>
+        <div id="wmlist" style="margin:8px 0"></div>
+        <div id="wmmsg" class="msg"></div>
+      </div>
+    </div>
+    </div><!-- /tools -->
+  </section>
+</main>
+
+<div class="microft" id="microft">// SYS &middot; BOARD &equiv; PHONE &middot; esp32-os</div>
+
+<footer id="controls" class="hidden">
+  <button class="sec navbtn" data-btn="S1" title="Previous item / page">&#9664;</button>
+  <button class="sec navbtn" data-btn="S2" title="Next item / page">&#9654;</button>
+  <button class="okbtn" data-btn="S5" title="Select / run action">&#9679; OK</button>
+  <button class="sec navbtn" id="backbtn" title="Back to the launcher">&#8617;</button>
+</footer>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  var ws, authed = false, pendingPin = null, authTimer = null, curPage = '', lastView = null;
+  var $ = function (id) { return document.getElementById(id); };
+  var dot = $('dot'), authSec = $('auth'), panel = $('panel'), controls = $('controls');
+  var authmsg = $('authmsg'), menu = $('menu'), pagelabel = $('pagelabel'), pulse = $('pulse');
+  var pinInput = $('pin'), passssid = $('passssid'), statusEl = $('status');
+  var helpEl = $('help'), infoBtn = $('info'), icoEl = $('ico'), toastEl = $('toast');
+
+  // ---- toast messages (feedback on an action) ----
+  var tt;
+  function toast(msg){
+    toastEl.textContent = msg; toastEl.classList.add('show');
+    clearTimeout(tt); tt = setTimeout(function(){ toastEl.classList.remove('show'); }, 1600);
+  }
+
+  // ---- status icons (WiFi / Bluetooth / battery+USB) ----
+  function wifiSvg(state, rssi){
+    var col = state==='sta' ? '#22c55e' : state==='ap' ? '#22d3ee' : '#3a4757';
+    var title = state==='sta' ? ('STA '+rssi+' dBm') : state==='ap' ? 'SoftAP (hosting)' : 'WiFi off';
+    return '<svg width="20" height="15" viewBox="0 0 20 15"><title>'+title+'</title>'+
+      '<path d="M2.5 5.5 a11 11 0 0 1 15 0" fill="none" stroke="'+col+'" stroke-width="1.7"/>'+
+      '<path d="M5.5 8.2 a7 7 0 0 1 9 0" fill="none" stroke="'+col+'" stroke-width="1.7"/>'+
+      '<path d="M8 10.8 a3 3 0 0 1 4 0" fill="none" stroke="'+col+'" stroke-width="1.7"/>'+
+      '<circle cx="10" cy="13" r="1.2" fill="'+col+'"/></svg>';
+  }
+  function btSvg(on){
+    if(!on) return '';
+    return '<svg width="11" height="15" viewBox="0 0 11 15"><title>Bluetooth</title>'+
+      '<path d="M3 4 L8 8.5 L5 11 V2 L8 4.5 L3 9" fill="none" stroke="#3b82f6" '+
+      'stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"/></svg>';
+  }
+  var PWR = ['On battery','Charging','Full / USB','USB (no battery)'];
+  function battSvg(mv, usb, pwr, rt){
+    var pct = Math.round((mv-3300)*100/900); pct=Math.max(0,Math.min(100,pct));
+    var w = pct/100*17;
+    var col = usb ? '#22d3ee' : (pct<20 ? '#ef4444' : pct<50 ? '#f59e0b' : '#22c55e');
+    var title = (PWR[pwr]||'')+' - '+mv+' mV ('+pct+'%)';
+    if (rt>0) title += ' - ~'+(rt>=60?(Math.floor(rt/60)+'h'+(rt%60)+'m'):(rt+'m'))+' left';
+    return '<svg width="28" height="15" viewBox="0 0 28 15"><title>'+title+'</title>'+
+      '<rect x="1" y="3" width="23" height="9" rx="2" fill="none" stroke="#8b98a8"/>'+
+      '<rect x="25" y="5.5" width="2.2" height="4" rx="1" fill="#8b98a8"/>'+
+      '<rect x="3" y="5" width="'+w+'" height="5" rx="1" fill="'+col+'"/>'+
+      (usb ? '<path d="M15 4 L11 8.2 H13.5 L12 11 L16 6.5 H13.5 Z" fill="#0b0f14" stroke="#fff" stroke-width="0.6"/>' : '')+
+      '</svg>';
+  }
+  function updateStatus(s){
+    var wstate = s.sta ? 'sta' : s.ap ? 'ap' : 'off';
+    icoEl.innerHTML = wifiSvg(wstate, s.rssi||0) + btSvg(!!s.bt) + battSvg(s.mv||0, !!s.usb, s.pwr||0, s.rt||-1);
+    if (s.mv){ battHist.push(s.mv/1000); if(battHist.length>120) battHist.shift(); drawBatt(); }  // battery voltage graph
+    if (s.sta && s.rssi){ rssiHist.push(s.rssi); if(rssiHist.length>120) rssiHist.shift(); drawRssi(); }  // STA link RSSI graph
+    // APEX coded top-bar subline + hero metric
+    var link = s.bt ? 'BT' : s.sta ? 'WIFI-STA' : s.ap ? 'SOFT-AP' : 'OFFLINE';
+    var lc = (s.sta||s.ap||s.bt) ? 'ok' : 'bd';
+    var PWR = ['ON BATTERY','CHARGING','FULL / USB','USB'];
+    var sysEl = $('sysline');
+    if (sysEl) sysEl.innerHTML = '// LINK <b class="'+lc+'">'+link+'</b> · RSSI '+(s.rssi||0)+
+      'dBm · '+(s.mv||0)+'mV · '+(PWR[s.pwr||0]||'');
+    var hv=$('heroVal'), hu=$('heroUnit');
+    if (hv){ hv.textContent = s.mv||'--'; hu.textContent='mV'; }
+  }
+
+  // ---- graphs: battery voltage (from status) + WiFi channel histogram (from WiFi Analyzer) ----
+  var grBody=$('grbody'), grOpen=false, battHist=[], chanCounts=new Array(14).fill(0), rssiHist=[];
+  $('grhead').onclick=function(){ grOpen=!grOpen; grBody.classList.toggle('hidden',!grOpen); if(grOpen){ drawBatt(); drawChan(); drawRssi(); drawSpectrum(); loadSpectrum(); } };
+  function cssv(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim() || '#888'; }
+  function prep(cv){ var d=window.devicePixelRatio||1, r=cv.getBoundingClientRect();
+    if(!r.width) return null; cv.width=r.width*d; cv.height=r.height*d;
+    var c=cv.getContext('2d'); c.setTransform(d,0,0,d,0,0); return {c:c,w:r.width,h:r.height}; }
+  function drawBatt(){
+    if(!grOpen) return; var p=prep($('battchart')); if(!p) return; var c=p.c,w=p.w,h=p.h; c.clearRect(0,0,w,h);
+    if(battHist.length<2){ c.fillStyle=cssv('--dim'); c.font='12px system-ui'; c.fillText('collecting...',6,16); return; }
+    var lo=Math.min.apply(null,battHist), hi=Math.max.apply(null,battHist);
+    if(hi-lo<0.05) hi=lo+0.05; var pad=(hi-lo)*0.15; lo-=pad; hi+=pad;
+    c.strokeStyle=cssv('--line'); c.fillStyle=cssv('--dim'); c.font='10px system-ui'; c.lineWidth=1;
+    for(var i=0;i<=2;i++){ var yy=h-4-(h-18)*i/2; c.beginPath(); c.moveTo(30,yy); c.lineTo(w-4,yy); c.stroke();
+      c.fillText((lo+(hi-lo)*i/2).toFixed(2),2,yy+3); }
+    c.strokeStyle=cssv('--accent'); c.lineWidth=1.6; c.beginPath();
+    for(var j=0;j<battHist.length;j++){ var x=30+(w-34)*j/(battHist.length-1), y=h-4-(h-18)*(battHist[j]-lo)/(hi-lo);
+      j?c.lineTo(x,y):c.moveTo(x,y); }
+    c.stroke();
+  }
+  function drawRssi(){
+    if(!grOpen) return; var p=prep($('rssichart')); if(!p) return; var c=p.c,w=p.w,h=p.h; c.clearRect(0,0,w,h);
+    if(rssiHist.length<2){ c.fillStyle=cssv('--dim'); c.font='12px system-ui'; c.fillText('no STA link yet',6,16); return; }
+    // Fixed dBm scale -30 (excellent) .. -95 (unusable) so the line reads absolutely.
+    var hi=-30, lo=-95;
+    c.strokeStyle=cssv('--line'); c.fillStyle=cssv('--dim'); c.font='10px system-ui'; c.lineWidth=1;
+    for(var i=0;i<=3;i++){ var val=hi-(hi-lo)*i/3, yy=6+(h-20)*i/3; c.beginPath(); c.moveTo(34,yy); c.lineTo(w-4,yy); c.stroke();
+      c.fillText(Math.round(val),2,yy+3); }
+    c.strokeStyle=cssv('--accent'); c.lineWidth=1.6; c.beginPath();
+    for(var j=0;j<rssiHist.length;j++){ var v=Math.max(lo,Math.min(hi,rssiHist[j]));
+      var x=34+(w-38)*j/(rssiHist.length-1), y=6+(h-20)*(hi-v)/(hi-lo); j?c.lineTo(x,y):c.moveTo(x,y); }
+    c.stroke();
+  }
+  function drawChan(){
+    if(!grOpen) return; var p=prep($('chanchart')); if(!p) return; var c=p.c,w=p.w,h=p.h; c.clearRect(0,0,w,h);
+    var mx=1; for(var i=1;i<=13;i++) if(chanCounts[i]>mx) mx=chanCounts[i];
+    var bw=(w-8)/13;
+    for(var ch=1;ch<=13;ch++){ var bh=(h-18)*chanCounts[ch]/mx, x=4+(ch-1)*bw;
+      c.fillStyle = chanCounts[ch]? cssv('--accent') : cssv('--line');
+      c.fillRect(x+1, h-14-bh, bw-2, Math.max(bh,1));
+      c.fillStyle=cssv('--dim'); c.font='9px system-ui'; c.textAlign='center'; c.fillText(ch, x+bw/2, h-3);
+      if(chanCounts[ch]){ c.fillStyle=cssv('--text'); c.fillText(chanCounts[ch], x+bw/2, h-16-bh); }
+      c.textAlign='left';
+    }
+  }
+  // ---- 2.4GHz spectrum (nRF24, 126 каналів) ----
+  var nrfData=null;
+  function drawSpectrum(){
+    if(!grOpen) return; var p=prep($('nrfchart')); if(!p) return; var c=p.c,w=p.w,h=p.h; c.clearRect(0,0,w,h);
+    if(!nrfData){ c.fillStyle=cssv('--dim'); c.font='12px system-ui'; c.fillText('scanning…',6,16); return; }
+    if(!nrfData.present){ c.fillStyle=cssv('--bad'); c.font='12px system-ui'; c.fillText('no nRF24 (check CE=12 / antenna)',6,16); return; }
+    var ch=nrfData.ch, N=ch.length, mx=1; for(var i=0;i<N;i++) if(ch[i]>mx) mx=ch[i];
+    var x0=4, bw=(w-8)/N;
+    var wifi={1:12,6:37,11:62}; // центри WiFi-каналів у нумерації nRF (MHz-2400)
+    for(var k in wifi){ var xc=x0+wifi[k]*bw; c.strokeStyle=cssv('--line'); c.setLineDash([2,3]);
+      c.beginPath(); c.moveTo(xc,2); c.lineTo(xc,h-12); c.stroke(); c.setLineDash([]);
+      c.fillStyle=cssv('--dim'); c.font='9px system-ui'; c.textAlign='center'; c.fillText('W'+k,xc,h-2); }
+    c.textAlign='left';
+    for(var j=0;j<N;j++){ if(!ch[j]) continue; var bh=(h-16)*ch[j]/mx, x=x0+j*bw;
+      c.fillStyle = ch[j]>mx*0.66? cssv('--bad') : ch[j]>mx*0.33? cssv('--warn') : cssv('--accent');
+      c.fillRect(x, h-12-bh, Math.max(bw,1), bh); }
+  }
+  function loadSpectrum(){
+    if(!grOpen) return;
+    api('/api/nrf/spectrum').then(function(r){return r.json();}).then(function(d){
+      nrfData=d; $('nrfstat').textContent = d.present? '' : '· no module'; drawSpectrum();
+    }).catch(function(){});
+  }
+  setInterval(function(){ if(grOpen) loadSpectrum(); }, 4000);
+  // ---- sub-GHz spectrum (CC1101, три вікна 300-928 МГц) ----
+  var sgData=null;
+  function drawSubghz(){
+    if(!grOpen) return; var p=prep($('sgchart')); if(!p) return; var c=p.c,w=p.w,h=p.h; c.clearRect(0,0,w,h);
+    if(!sgData){ c.fillStyle=cssv('--dim'); c.font='12px system-ui'; c.fillText('scanning…',6,16); return; }
+    if(!sgData.present){ c.fillStyle=cssv('--bad'); c.font='12px system-ui'; c.fillText('no CC1101 (check CS=27 / GDO0=39 / 3.3V)',6,16); return; }
+    var db=sgData.db, mhz=sgData.mhz, N=db.length; if(!N) return;
+    var flo=-120, top=-30, x0=4, bw=(w-8)/N;
+    for(var i=1;i<N;i++){ if(mhz[i]-mhz[i-1] > 10){ var xb=x0+i*bw;   // межа між вікнами
+      c.strokeStyle=cssv('--line'); c.setLineDash([2,3]); c.beginPath(); c.moveTo(xb,2); c.lineTo(xb,h-12); c.stroke(); c.setLineDash([]); } }
+    for(var j=0;j<N;j++){ var v=db[j]; if(v<=flo) continue; var bh=(h-14)*(v-flo)/(top-flo);
+      if(bh<0)bh=0; if(bh>h-14)bh=h-14; var x=x0+j*bw;
+      c.fillStyle = v>-60? cssv('--bad') : v>-85? cssv('--warn') : cssv('--accent');
+      c.fillRect(x, h-12-bh, Math.max(bw,1), bh); }
+    c.fillStyle=cssv('--dim'); c.font='9px system-ui'; c.textAlign='center';
+    function markF(f){ var bi=-1; for(var k=0;k<N;k++){ if(mhz[k]>=f){ bi=k; break; } } if(bi<0) return;
+      c.fillText(f, x0+bi*bw, h-2); }
+    markF(315); markF(433); markF(868); markF(915);
+    c.textAlign='left';
+  }
+  function loadSubghz(){
+    if(!grOpen) return;
+    api('/api/subghz/spectrum').then(function(r){return r.json();}).then(function(d){
+      sgData=d; $('sgstat').textContent = d.present? '' : '· no module'; drawSubghz();
+    }).catch(function(){});
+  }
+  setInterval(function(){ if(grOpen) loadSubghz(); }, 5000);
+  var helpOpen = true;
+  try { helpOpen = localStorage.getItem('help') !== '0'; } catch(e){}
+
+  function renderHelp(){
+    var h = HELP[helpKey(curPage)];
+    infoBtn.classList.toggle('on', helpOpen);
+    if (!helpOpen || !h) { helpEl.classList.add('hidden'); return; }
+    helpEl.classList.remove('hidden');
+    helpEl.innerHTML =
+      '<h2>' + h.t + '</h2>' +
+      '<div class="sec"><b>What it does</b>' + h.w + '</div>' +
+      '<div class="sec"><b>How to use</b>' + h.u + '</div>' +
+      '<div class="sec"><b>Reading the output</b>' + h.o + '</div>';
+  }
+  infoBtn.onclick = function(){
+    helpOpen = !helpOpen;
+    try { localStorage.setItem('help', helpOpen ? '1' : '0'); } catch(e){}
+    renderHelp();
+  };
+
+  // ---- web console (live log from the board) ----
+  var conBody = $('conbody'), conCount = $('concount'), conOpen = false, conLines = [];
+  $('conhead').onclick = function(){ conOpen = !conOpen; conBody.classList.toggle('hidden', !conOpen);
+    if(conOpen) conBody.scrollTop = conBody.scrollHeight; };
+  function appendLog(arr){
+    for (var i=0;i<arr.length;i++) conLines.push(arr[i]);
+    if (conLines.length > 200) conLines = conLines.slice(-200);
+    conCount.textContent = conLines.length;
+    conBody.textContent = conLines.join('\n');
+    if (conOpen) conBody.scrollTop = conBody.scrollHeight;
+  }
+
+  // pages where list items are actions (tap selects, drawn as tiles); others are just info (rows)
+  var ACTIONABLE = { launcher:1, wifi_list:1, net_scan:1, arp_scan:1, mdns:1, ssdp:1, ble_scan:1,
+                     discover:1, web:1, netdiag:1, air:1, bluetooth:1 };  // groups -> tappable mode selector
+
+  // Contextual help per tool. Key = page group (see helpKey()).
+  var HELP = {
+    launcher: { t:'Main menu', w:'All apps and diagnostic tools.',
+      u:'Tap a tile to launch, or use Next / Select below.', o:'Highlighted tile = the board cursor (board and phone share one state).' },
+    discover: { t:'Discover', w:'LAN-inventory tools: Net Scan, ARP Scan, mDNS, SSDP/UPnP.',
+      u:'Tap a mode; "< Back" returns to the group.', o:'Each mode mirrors its own result list.' },
+    web: { t:'Web', w:'HTTP/TLS tools for one URL: GET, POST, Sec headers, TLS Cert.',
+      u:'Tap a mode.', o:'Each mode has its own input and result.' },
+    netdiag: { t:'Net Diag', w:'Reachability & quality: Net Info, Link Qual, Traceroute, DNS, Captive.',
+      u:'Tap a mode.', o:'Each mode mirrors its own result.' },
+    air: { t:'Air - WiFi RF', w:'WiFi Analyzer, Channel Monitor, Sniffer, Deauth Alert. Sniffer/Deauth take over the radio (AP drops).',
+      u:'Tap a mode.', o:'Radio-takeover modes show mainly on the board screen.' },
+    bluetooth: { t:'Bluetooth', w:'BT Scan (Classic) and BLE Scan (+GATT).',
+      u:'Tap a mode.', o:'Lists nearby devices.' },
+    wifi: { t:'WiFi Setup', w:'Connects the board to a WiFi network (STA). Needed first - all net tools depend on it.',
+      u:'Tap a network. Known ones ("K") join instantly; for a new secured one type the password below then Connect (remembered).',
+      o:'"Connected! IP:..." = ok. "Failed" = wrong password or unreachable.' },
+    system: { t:'System', w:'ESP32 hardware & runtime metrics.',
+      u:'Next scrolls CHIP <-> RUNTIME.',
+      o:'CHIP: model/cores/clock/flash/ID. RUNTIME: uptime/heap/reset reason/temp.' },
+    net_info: { t:'Net Info', w:'Connection params + ping reachability check.',
+      u:'Select to ping the gateway and 8.8.8.8.',
+      o:'IP/GW/DNS/RSSI; "GW ping N ms" router latency, "Internet N ms" = online, "FAIL" = no reply.' },
+    net_scan: { t:'Net Scan', w:'Sweeps the subnet, finds live hosts + their open TCP ports.',
+      u:'Wait (or Select to stop). Tap a host for details. Fields below set a range or ports.',
+      o:'Live IPs; details show RTT + ports (80/443 web, 22 SSH, 23 telnet, 1883 MQTT, 554 cam).' },
+    mdns: { t:'mDNS', w:'Finds devices advertising services (routers, Chromecast, printers, NAS).',
+      u:'Wait; tap a service for details.',
+      o:'"name :port"; details show type/_tcp, IP, port. Tells you WHAT a device is.' },
+    dns_lookup: { t:'DNS Lookup', w:'Resolves a domain name to an IP.',
+      u:'Enter a host then Resolve. Select repeats.',
+      o:'"IP:..." resolved; "Not found" = no such name / DNS down.' },
+    http_get: { t:'HTTP GET', w:'GET request to a device web API on the network.',
+      u:'Enter a URL then GET. Select repeats.',
+      o:'"Status 200" green ok; 4xx/5xx red error. Below = response start.' },
+    http_post: { t:'HTTP POST', w:'POSTs data to a web API (e.g. change state).',
+      u:'Set URL, then body (JSON) then POST.',
+      o:'"Status 2xx" accepted. Below = response.' },
+    tcp_term: { t:'TCP Terminal', w:'Raw TCP client to host:port (like telnet).',
+      u:'Enter target then Connect. Type lines then Send. Select = reconnect.',
+      o:'Board screen streams received bytes; sent lines marked "> ".' },
+    remote: { t:'Remote', w:'Shows the PIN and keeps the control channel active.',
+      u:'Next = keep on and exit; Select = confirm before turning off (avoids dropping your own link).',
+      o:'6-digit PIN for login; "authorized" = a client is connected.' },
+    battery: { t:'Battery Diag', w:'Li-ion monitor + test (voltage, internal resistance, health).',
+      u:'Next scrolls pages; Select resets stats or runs the DIAG test.',
+      o:'Voltage/%/trend; after test - Rint, Health, verdict.' },
+    wol: { t:'Wake on LAN', w:'Magic packet to power on a device by MAC (needs WoL support).',
+      u:'Enter a MAC then Wake. Select repeats.',
+      o:'"Magic packet sent" - went out (waking depends on the target NIC).' },
+    wifi_analyzer: { t:'WiFi Analyzer', w:'Top nets by RSSI, channel load 1-13, RSSI-over-time.',
+      u:'Next scrolls pages, Select rescans.', o:'Graphs on the board screen; here the network list.' },
+    channel_monitor: { t:'Channel Monitor', w:'Counts frames per WiFi channel (passive).',
+      u:'Histogram on the board screen.', o:'Here the current hop channel.' },
+    ssdp: { t:'SSDP / UPnP', w:'M-SEARCH finds UPnP devices often invisible to mDNS.',
+      u:'Tap a device; Select in details opens LOCATION in HTTP GET.', o:'SERVER + IP; details show ST + description URL.' },
+    arp_scan: { t:'ARP Scan', w:'ARP across the subnet - finds hosts hidden from TCP/ICMP (sees more than Net Scan).',
+      u:'Tap a host for MAC/vendor/type.', o:'IP + vendor; gateway marked, randomized phone MACs shown too.' },
+    wifi_sniffer: { t:'WiFi Sniffer', w:'Promiscuous: inventories APs + clients, counts deauth/disassoc. Listening only.',
+      u:'Next scrolls Summary/APs/Clients/Exit, Select clears.', o:'Current page mirrored; hops channels 1-13.' },
+    bt_scan: { t:'BT Scan', w:'Inventory of nearby Classic BT devices.',
+      u:'Select rescans.', o:'Name / address / RSSI.' },
+    ble_scan: { t:'BLE Scan', w:'Nearby BLE devices; select one for its GATT services.',
+      u:'Tap a device.', o:'GATT details on the board screen.' },
+    link_qual: { t:'Link Qual', w:'Periodic ping: RTT min/avg/max, jitter, loss + graph.',
+      u:'Board: S2 cycles target, S5 resets.', o:'Numeric stats here; graph on the board.' },
+    traceroute: { t:'Traceroute', w:'Incrementing-TTL ICMP: hops to the target + each RTT. Default 8.8.8.8.',
+      u:'Board S5 = stop/restart.', o:'Hops (IP + ms).' },
+    tls_cert: { t:'TLS Cert', w:'TLS handshake on :443 - subject, issuer, validity. No trust check.',
+      u:'Board S5 = repeat.', o:'CN / issuer / expires.' },
+    http_sec: { t:'HTTP Sec', w:'Checks HSTS/CSP/X-Frame/X-Content/Referrer/Permissions headers + score.',
+      u:'Board S5 = repeat.', o:'Score X/6 + which headers present.' },
+    captive: { t:'Captive', w:'204-probe: detects hotel/airport portal interception; can best-effort auto-accept.',
+      u:'Select = auto-accept (captive) or re-check. S2 = exit.', o:'Verdict open/captive/no-net; shows portal URL + result.' },
+    deauth_alert: { t:'Deauth Alert', w:'Passively catches deauth/disassoc frames; alerts on a spike.',
+      u:'Board S2 = page, S5 = clear.', o:'Counters + top BSSID sources.' },
+    self_test: { t:'Self Test', w:'Runs all non-radio net modules, saves a report each to /reports (bot syncs to Telegram).',
+      u:'S5 start. End: S2 scroll results, S5 repeat, back exit.', o:'Progress N/12; then each result page by page.' },
+    em_field: { t:'EM Field', w:'Coil + diode on GPIO36 reads induced field (mV pp per 50Hz cycle). Comparative EMI finder, not calibrated.',
+      u:'Hold coil near a source. Calibrate: hold AWAY then S5 captures the noise floor as zero. S2 exits.',
+      o:'Big number = field above noise; peak = max; zero = baseline. Auto-scales.' },
+    subghz_analyzer: { t:'Sub-GHz Analyzer', w:'CC1101 RSSI sweep across the three tunable sub-GHz windows (300-348 / 387-464 / 779-928 MHz). Passive, RX only. Finds active remotes, sensors, meters, telemetry.',
+      u:'Just watch the histogram. S5 resets the peak-hold, S2 exits. Open the Graphs card for a full-screen spectrum.',
+      o:'Bar height = signal strength (dBm). Peak marked amber; vertical lines split the three windows. Green weak, amber medium, red strong.' },
+    subghz_capture: { t:'Sub-GHz Capture', w:'Listens on an ISM frequency and decodes OOK/ASK remotes of the EV1527/PT2262 family (garages, gates, bells, sockets). Great for testing Nice/433 remotes.',
+      u:'S1 cycles frequency (433.92 / 868.35 / 315 / 915), S5 listens ~2.5s for a button press, S2 exits.',
+      o:'Shows protocol, code (hex), bit count and Te timing. Rolling-code remotes (car keys) capture but never repeat.' },
+    subghz_watch: { t:'Sub-GHz Watch', w:'Counter-surveillance: repeatedly sweeps sub-GHz and flags PERSISTENT transmitters (seen several passes in a row) — 433/868 trackers, bugs, telemetry that hide off 2.4GHz.',
+      u:'Leave it running. S5 resets, S2 exits. A source seen 3+ passes appears in the list.',
+      o:'Each row: frequency, RSSI, and how many passes it has persisted. Empty = clear air.' }
+  };
+
+  function helpKey(page){
+    if (!page) return '';
+    if (page === 'wifi_analyzer') return 'wifi_analyzer';   // exception BEFORE the general rule below
+    if (page === 'wifi_sniffer') return 'wifi_sniffer';     // exception BEFORE the general rule below
+    if (page.indexOf('wifi_') === 0) return 'wifi';
+    if (page.indexOf('sys_') === 0) return 'system';
+    if (page.indexOf('net_scan') === 0) return 'net_scan';
+    if (page.indexOf('Remote') === 0) return 'remote';
+    if (page.indexOf('Battery') === 0) return 'battery';
+    return page;
+  }
+
+  // localStorage (not sessionStorage): the PIN is now static on the board (does not change
+  // every time), so it makes sense to remember it across browser closes / phone reboots -
+  // this is "remember this device", just at the browser level, without unreliable MAC
+  // binding (modern phones randomize MAC by default).
+  function savedPin(){ try { return localStorage.getItem('rpin'); } catch(e){ return null; } }
+  function setSavedPin(p){ try { p?localStorage.setItem('rpin',p):localStorage.removeItem('rpin'); } catch(e){} }
+  function wsUrl(){ return 'ws://' + (location.hostname || '192.168.4.1') + ':81/'; }
+  // linkMode: 'ws' — живий WebSocket (телефон); 'poll' — REST-фолбек по HTTP:80, коли
+  // браузер блокує WS-порт 81 (пісочниця веб-агента). Керування й мірор ідентичні,
+  // лише транспорт інший. Перемикання авто: якщо WS не піднявся — переходимо в poll.
+  var linkMode = 'ws';
+  var wsEverOpened = false, wsWatchdog = null, pollTimer = null, logCursor = 0;
+  function send(o){
+    if (linkMode === 'poll') {
+      fetch('/api/cmd', { method:'POST', body: JSON.stringify(o) }).catch(function(){});
+      return;
+    }
+    if (ws && ws.readyState===1) ws.send(JSON.stringify(o));
+  }
+  // Єдиний диспетчер вхідних повідомлень — спільний для ws.onmessage і REST-поллу.
+  function handleMsg(st){
+    if(!authed){ authed=true; clearTimeout(authTimer); if(pendingPin) setSavedPin(pendingPin); showPanel(); }
+    if(st.status){ updateStatus(st.status); return; }  // status -> icons only
+    if(st.log){ appendLog(st.log); return; }           // log -> console only
+    render(st);
+  }
+  // --- REST-полінг (poll-режим) ---
+  function pollMirror(){
+    fetch('/api/mirror').then(function(r){
+      if(r.status===401){ authed=false; var sp=savedPin();
+        if(sp){ toast('Re-auth...'); sendPin(sp); } else showAuth('session lost - re-enter PIN');
+        return null; }
+      return r.json();
+    }).then(function(arr){
+      if(Array.isArray(arr)) arr.forEach(function(m){ if(m) handleMsg(m); });
+    }).catch(function(){ /* транзієнтний збій — наступний тік */ });
+  }
+  function pollLog(){
+    fetch('/api/log?since='+logCursor).then(function(r){ return r.ok?r.json():null; })
+      .then(function(d){ if(!d) return; if(d.log && d.log.length) appendLog(d.log);
+                         if(typeof d.total==='number') logCursor=d.total; })
+      .catch(function(){});
+  }
+  function startPoll(){
+    if(linkMode==='poll') return;
+    linkMode='poll'; dot.classList.add('on');   // HTTP працює -> вважаємо "лінк є"
+    toast('WS blocked - REST fallback');
+    var sp=savedPin(); if(sp) sendPin(sp); else showAuth('');
+    if(pollTimer) clearInterval(pollTimer);
+    pollTimer=setInterval(function(){ if(authed){ pollMirror(); } }, 350);
+    setInterval(function(){ if(authed) pollLog(); }, 1000);
+  }
+
+  function setPulse(on){ pulse.classList.toggle('live', !!on); }
+
+  function showAuth(msg){ authed=false; panel.classList.add('hidden'); controls.classList.add('hidden');
+    authSec.classList.remove('hidden'); authmsg.textContent=msg||''; authmsg.className='msg'+(msg?' err':'');
+    setPulse(false); pagelabel.textContent='-'; }
+  function showPanel(){ authSec.classList.add('hidden'); panel.classList.remove('hidden');
+    controls.classList.remove('hidden'); authmsg.textContent=''; setPulse(true); }
+
+  function sendPin(pin){
+    pendingPin = pin;
+    clearTimeout(authTimer);
+    if(linkMode==='poll'){
+      // REST-логін: POST /api/login -> {ok}. authed виставиться на першому мірор-повідомленні.
+      fetch('/api/login', { method:'POST', body: JSON.stringify({ pin: pin }) })
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          if(d && d.ok){ if(pendingPin) setSavedPin(pendingPin); pollMirror(); pollLog(); }
+          else { setSavedPin(null); showAuth(d && d.locked ? 'locked - too many tries' : 'PIN wrong or changed'); }
+        })
+        .catch(function(){ showAuth('login failed - retry'); });
+      return;
+    }
+    send({ pin: pin });
+    authTimer = setTimeout(function(){ if(!authed){ setSavedPin(null); showAuth('PIN wrong or changed'); } }, 2000);
+  }
+
+  function connect(){
+    if(linkMode==='poll') return;   // вже у REST-фолбеку — WS більше не пробуємо
+    try { ws = new WebSocket(wsUrl()); }
+    catch(e){ startPoll(); return; }   // WS недоступний у цьому браузері -> одразу REST
+    // Вартовий: якщо WS не відкрився за 2.5с (порт 81 заблоковано пісочницею) — фолбек.
+    clearTimeout(wsWatchdog);
+    wsWatchdog = setTimeout(function(){
+      if(!ws || ws.readyState!==1){ try{ ws.close(); }catch(_){}; startPoll(); }
+    }, 2500);
+    ws.onopen = function(){ wsEverOpened=true; clearTimeout(wsWatchdog);
+      dot.classList.add('on'); var sp=savedPin(); if(sp) sendPin(sp); };
+    ws.onerror = function(){ /* фолбек вирішить onclose(!wsEverOpened) або вартовий */ };
+    ws.onclose = function(){
+      if(linkMode==='poll') return;
+      clearTimeout(wsWatchdog);
+      if(!wsEverOpened){ startPoll(); return; }   // так і не піднявся -> REST-фолбек
+      dot.classList.remove('on'); authed=false; setPulse(false);
+      if(!savedPin()) showAuth('disconnected'); else toast('Link lost - reconnecting...');
+      setTimeout(connect, 1200);
+    };
+    ws.onmessage = function(ev){
+      var st; try { st = JSON.parse(ev.data); } catch(e){ return; }
+      handleMsg(st);
+    };
+  }
+
+  // APEX-style status classification for a value token -> tag color class (or null).
+  function statusTag(v){
+    var s=(v||'').trim();
+    if(/^(GO|OK|UP|NOMINAL|PASS|GRANTED|CONNECTED|PRESENT|ONLINE|SECURED|LIVE|ACTIVE)$/i.test(s)) return 'go';
+    if(/^(HOLD|WARN|WAIT|WAITING|STANDBY|N\/A|PARTIAL|PENDING|OFFLINE|BLOCKED)$/i.test(s)) return 'warn';
+    if(/^(FAIL|BAD|DOWN|CLOSED|DENIED|ERROR|ANOMALY|LOST|WIDE-OPEN)$/i.test(s)) return 'bad';
+    return null;
+  }
+  // Render one mirrored info item as an APEX status row: "-- HDR --", "KEY: VALUE" or plain.
+  function buildInfoRow(name, sel){
+    var el=document.createElement('div');
+    var hm=/^--\s*(.+?)\s*--$/.exec(name);
+    if(hm){ el.className='row hdr'; el.textContent=hm[1]; return el; }
+    var m=/^(.{1,20}?)\s*[:=]\s+(.+)$/.exec(name);
+    if(m){
+      el.className='row kv'+(sel?' sel':'');
+      var k=document.createElement('span'); k.className='k'; k.textContent=m[1].trim();
+      var lead=document.createElement('span'); lead.className='lead';
+      var v=document.createElement('span'); v.className='v';
+      var val=m[2].trim(), tg=statusTag(val);
+      if(tg){ var t=document.createElement('span'); t.className='tag '+tg; t.textContent=val; v.appendChild(t); }
+      else v.textContent=val;
+      el.appendChild(k); el.appendChild(lead); el.appendChild(v);
+      return el;
+    }
+    el.className='row'+(sel?' sel':''); el.textContent=name; return el;
+  }
+
+  function render(st){
+    curPage = st.page || '';
+    if (st.items) lastView = st;   // last list - for saving to a report
+    pagelabel.textContent = curPage || '-';
+    renderHelp();
+    var actionable = !!ACTIONABLE[curPage];
+
+    // Channel histogram data: parse "... -NNdBm cN" lines from WiFi Analyzer's list.
+    if (curPage === 'wifi_analyzer' && Array.isArray(st.items)) {
+      var cc = new Array(14).fill(0);
+      st.items.forEach(function(it){ var m=/c(\d{1,2})\s*$/.exec(it); if(m){ var ch=+m[1]; if(ch>=1&&ch<=13) cc[ch]++; } });
+      chanCounts = cc; drawChan();
+    }
+
+    // item list: tiles for actions, plain rows for info
+    menu.innerHTML = '';
+    menu.className = actionable ? 'grid' : 'list';
+    if (Array.isArray(st.items)) {
+      st.items.forEach(function(name, i){
+        if (actionable) {
+          var el = document.createElement('div');
+          el.className = 'tile' + (i === st.cursor ? ' sel' : '');
+          var span = document.createElement('span'); span.textContent = name; el.appendChild(span);
+          el.tabIndex = 0;
+          var ch = document.createElement('span'); ch.className='chev'; ch.textContent='›'; el.appendChild(ch);
+          el.onclick = (function(idx, nm){ return function(){ send({ idx: idx }); toast(nm); }; })(i, name);
+          el.onkeydown = (function(){ return function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); el.click(); } }; })();
+          menu.appendChild(el);
+        } else {
+          menu.appendChild(buildInfoRow(name, i === st.cursor));   // APEX status-row styling
+        }
+      });
+    }
+
+    // special panels
+    $('wifipass').classList.toggle('hidden', curPage!=='wifi_pass');
+    if (curPage==='wifi_pass') passssid.textContent = st.ssid||'';
+    $('httpbox').classList.toggle('hidden', curPage!=='http_get');
+    $('scanbox').classList.toggle('hidden', curPage!=='net_scan');
+    $('dnsbox').classList.toggle('hidden', curPage!=='dns_lookup');
+    $('wolbox').classList.toggle('hidden', curPage!=='wol');
+    $('postbox').classList.toggle('hidden', curPage!=='http_post');
+    $('tcpbox').classList.toggle('hidden', curPage!=='tcp_term');
+    // generic target/host/url input for link_qual/traceroute/tls_cert/http_sec
+    var PROBE = { link_qual:['target','Target host/IP'], traceroute:['target','Target host/IP'],
+                  tls_cert:['host','Host (TLS :443)'], http_sec:['url','URL'] };
+    var pp = PROBE[curPage];
+    $('probebox').classList.toggle('hidden', !pp);
+    if (pp) { $('probelabel').textContent = pp[1]; $('probebox').dataset.field = pp[0]; }
+    $('setbox').classList.toggle('hidden', curPage!=='settings');
+
+    // statuses
+    var s='';
+    if (curPage==='wifi_scan') s='Sniffing the airwaves...';
+    else if (curPage==='wifi_scanfail') s='Scan failed';
+    else if (curPage==='wifi_connecting') s='Connecting to '+(st.ssid||'')+'...';
+    else if (curPage==='wifi_ok') s='Connected! IP: '+(st.ip||'');
+    else if (curPage==='wifi_fail') s='Failed (password?)';
+    else if (curPage==='wifi_bt_blocked') s='BT active - WiFi blocked';
+    statusEl.textContent = s;
+    statusEl.className = 'msg'+(curPage==='wifi_ok'?' ok':((curPage==='wifi_fail'||curPage==='wifi_scanfail')?' err':''));
+    if (/\.\.\.$/.test(s)) statusEl.classList.add('scanning');   // live pulse while "...ing"
+    var mf=$('microft');
+    if(mf) mf.textContent='// ▸ '+(curPage||'-')+' · board ≡ phone · '+(authed?'secure':'locked');
+  }
+
+  // ---- login ----
+  $('connect').onclick = function(){
+    var pin=(pinInput.value||'').trim();
+    if(pin.length!==6){ authmsg.textContent='PIN = 6 digits'; authmsg.className='msg err'; return; }
+    authmsg.textContent='checking...'; authmsg.className='msg';
+    if(linkMode==='poll'){ sendPin(pin); return; }   // REST-фолбек: WS не буде — логінимось одразу по :80
+    if(!ws||ws.readyState!==1) connect();
+    // Чекаємо на WS; але якщо вартовий переключив у poll-режим під час очікування — шлемо по REST.
+    (function tr(){ if(linkMode==='poll'){ sendPin(pin); } else if(ws&&ws.readyState===1){ sendPin(pin); } else setTimeout(tr,150); })();
+  };
+
+  // ---- control panel (same command path as the physical board buttons) ----
+  Array.prototype.forEach.call(document.querySelectorAll('[data-btn]'), function(b){
+    b.onclick = function(){ send({ btn: b.getAttribute('data-btn') }); };
+  });
+  $('backbtn').onclick = function(){ send({ back: true }); };
+  var railEl=$('rail'); if(railEl) railEl.onclick=function(){ send({ back: true }); toast('◂ back'); };
+
+  // ---- special inputs ----
+  function txt(id){ return (document.getElementById(id).value||'').trim(); }
+  $('wifisend').onclick = function(){ send({text:'password', value:document.getElementById('wifipw').value||''}); document.getElementById('wifipw').value=''; };
+  $('httpsend').onclick = function(){ var u=txt('httpurl'); if(u) send({text:'url', value:u}); };
+  $('scanrangesend').onclick = function(){ var r=txt('scanrange'); if(r) send({text:'range', value:r}); };
+  $('scanportssend').onclick = function(){ var p=txt('scanports'); if(p) send({text:'ports', value:p}); };
+  $('dnssend').onclick = function(){ var h=txt('dnshost'); if(h) send({text:'host', value:h}); };
+  $('wolsend').onclick = function(){ var m=txt('wolmac'); if(m){ send({text:'mac', value:m}); toast('Wake sent'); } };
+  $('posturlsend').onclick = function(){ var u=txt('posturl'); if(u) send({text:'url', value:u}); };
+  $('postbodysend').onclick = function(){ send({text:'body', value:document.getElementById('postbody').value||''}); };
+  $('tcptargetsend').onclick = function(){ var t=txt('tcptarget'); if(t) send({text:'target', value:t}); };
+  $('tcplinesend').onclick = function(){ send({text:'line', value:document.getElementById('tcpline').value||''}); document.getElementById('tcpline').value=''; };
+  $('probesend').onclick = function(){ var v=txt('probeval'), f=$('probebox').dataset.field; if(v&&f){ send({text:f, value:v}); toast('Set '+f); } };
+  $('mdnsset').onclick = function(){ var n=txt('mdnsnameinp'); if(n){ send({text:'mdnsname', value:n}); toast('mDNS name set (rejoin as '+n+'.local)'); } };
+  $('mdnson').onclick = function(){ send({text:'mdnsen', value:'1'}); toast('mDNS on'); };
+  $('mdnsoff').onclick = function(){ send({text:'mdnsen', value:'0'}); toast('mDNS off'); };
+  $('botset').onclick = function(){ var u=txt('boturlinp'); if(u){ send({text:'boturl', value:u}); toast('Bot URL set'); } };
+
+  // ---- script file manager (.be) via HTTP /fs/* (requires PIN auth) ----
+  var scrBody=$('scrbody'), scrList=$('scrlist'), scrName=$('scrname'), scrCode=$('scrcode'),
+      scrMsg=$('scrmsg'), scrCat=$('scrcat'), scrOpen=false;
+  // Human labels for category-modules (keys come from the board in d.cats).
+  var CAT_LABEL = { system:'System - board state', net:'Net - network',
+                    gpio:'GPIO / I2C', uno:'UNO - coprocessor', misc:'Misc - other' };
+  function api(p, o){ return fetch(location.origin + p, o); }
+  function curCat(){ return scrCat.value || 'misc'; }
+  $('scrhead').onclick = function(){ scrOpen=!scrOpen; scrBody.classList.toggle('hidden',!scrOpen); if(scrOpen) loadList(); };
+
+  // ---- reports (list snapshots in LittleFS) via /reports/* ----
+  var repBody=$('repbody'), repList=$('replist'), repMsg=$('repmsg'), repOpen=false;
+  $('rephead').onclick=function(){ repOpen=!repOpen; repBody.classList.toggle('hidden',!repOpen); if(repOpen) loadReports(); };
+  function viewText(){
+    if(!lastView) return '';
+    var t=(lastView.page||'view')+'\n';
+    (lastView.items||[]).forEach(function(it,i){ t+=(i+1)+'. '+it+'\n'; });
+    return t;
+  }
+  function loadReports(){
+    api('/reports/list').then(function(r){
+      if(r.status===401){ repMsg.textContent='Authorization required (log in with PIN above)'; throw 0; }
+      return r.json();
+    }).then(function(d){
+      repList.innerHTML=''; var rs=d.reports||[];
+      if(!rs.length){ repMsg.textContent='No snapshots yet. Go poke the network.'; return; }
+      repMsg.textContent='';
+      rs.forEach(function(n){
+        var row=document.createElement('div'); row.style.cssText='display:flex;gap:6px;align-items:center;margin:4px 0';
+        var a=document.createElement('button'); a.className='sec'; a.textContent=n; a.style.cssText='flex:1;text-align:left;padding:8px 12px';
+        a.onclick=function(){ window.open(location.origin+'/reports/get?f='+encodeURIComponent(n),'_blank'); };
+        var x=document.createElement('button'); x.className='sec'; x.textContent='X'; x.style.width='auto';
+        x.onclick=function(){ api('/reports/del?f='+encodeURIComponent(n)).then(function(){ loadReports(); }); };
+        row.appendChild(a); row.appendChild(x); repList.appendChild(row);
+      });
+    }).catch(function(e){ if(e!==0) repMsg.textContent='Reports API unavailable'; });
+  }
+  $('repsave').onclick=function(){
+    var t=viewText(); if(!t){ repMsg.textContent='No list to save (open a scan/list)'; return; }
+    var nm=(lastView&&lastView.page)||'view';
+    api('/reports/save?name='+encodeURIComponent(nm),{method:'POST',body:t}).then(function(r){
+      if(r.status===401){ repMsg.textContent='Authorization required (log in with PIN above)'; return; }
+      repMsg.textContent = r.ok?'Saved':'Error'; if(r.ok){ loadReports(); toast('Report saved'); }
+    });
+  };
+  $('repexport').onclick=function(){
+    // One download with all reports concatenated (board streams them chunked).
+    window.open(location.origin+'/reports/export','_blank'); toast('Exporting reports');
+  };
+  $('repsync').onclick=function(){
+    // Board pushes reports to the bot itself (phone on SoftAP can't reach the PC;
+    // the board on the home network can). Bot dedups via its DB.
+    repMsg.textContent='Pushing reports to bot...';
+    api('/reports/push',{method:'POST'}).then(function(r){
+      if(r.status===401){ repMsg.textContent='Authorization required (log in with PIN above)'; throw 0; }
+      return r.json();
+    }).then(function(d){
+      if(!d) return;
+      repMsg.textContent = '✓ pushed '+d.pushed+', failed '+d.failed+' (bot '+d.bot+')';
+      toast('Pushed '+d.pushed+' to Telegram');
+    }).catch(function(e){ if(e!==0) repMsg.textContent='✗ push failed (bot unreachable or URL not set in Settings)'; });
+  };
+
+  // ---- power: passive (screen off) / reboot (replaces dead RST button) ----
+  var pwrBody=$('pwrbody'), pwrMsg=$('pwrmsg'), pwrOpen=false;
+  $('pwrhead').onclick=function(){ pwrOpen=!pwrOpen; pwrBody.classList.toggle('hidden',!pwrOpen); };
+  $('pwrpassive').onclick=function(){
+    api('/sys/passive',{method:'POST'}).then(function(r){
+      if(r.status===401){ pwrMsg.textContent='Authorization required (log in with PIN above)'; return; }
+      pwrMsg.textContent = r.ok ? 'Screen off; board still running' : 'Failed';
+      if(r.ok) toast('Passive: screen off');
+    }).catch(function(){ pwrMsg.textContent='Request failed'; });
+  };
+  $('pwrreboot').onclick=function(){
+    if(!confirm('Reboot the board? UI drops for ~5s, then reconnects.')) return;
+    pwrMsg.textContent='Rebooting...'; toast('Rebooting');
+    api('/sys/reboot',{method:'POST'}).catch(function(){});
+  };
+
+  // ---- stats: resource health (/api/stats), polled every 5s while the card is open ----
+  var stBody=$('stbody'), stGrid=$('stgrid'), stMsg=$('stmsg'), stOpen=false, stTimer=null;
+  function fmtBytes(b){ return b>=1024 ? (b/1024).toFixed(b>=10240?0:1)+' KB' : b+' B'; }
+  function fmtUp(s){ var d=Math.floor(s/86400); s-=d*86400; var h=Math.floor(s/3600); s-=h*3600; var m=Math.floor(s/60);
+    return (d?d+'d ':'')+(h||d?h+'h ':'')+m+'m'; }
+  function stCell(k,v){ return '<div style="color:var(--dim)">'+k+'</div>'+
+    '<div style="text-align:right;font-variant-numeric:tabular-nums;word-break:break-all">'+v+'</div>'; }
+  function loadStats(){
+    api('/api/stats').then(function(r){ return r.json(); }).then(function(d){
+      if(!d){ stMsg.textContent='Stats API unavailable'; return; }
+      stMsg.textContent='';
+      // Fragmentation: how far the largest free block is below total free heap.
+      var frag = (d.heap_maxblk && d.heap) ? Math.round((1 - d.heap_maxblk/d.heap)*100) : 0;
+      // APEX segmented bar meters (heap fill / fragmentation / RSSI quality)
+      var segBox=$('stseg');
+      if(!segBox){ segBox=document.createElement('div'); segBox.id='stseg'; stGrid.parentNode.insertBefore(segBox, stGrid); }
+      function segBar(label,disp,pct,warnAt,badAt){
+        var n=18, on=Math.max(0,Math.min(n,Math.round(pct/100*n)));
+        var cls=(badAt&&pct>=badAt)?'bd':(warnAt&&pct>=warnAt)?'wn':'on';
+        var cells=''; for(var i=0;i<n;i++) cells+='<i class="'+(i<on?cls:'')+'"></i>';
+        return '<div class="segrow"><div class="sl">'+label+' <b>'+disp+'</b></div><div class="seg">'+cells+'</div></div>';
+      }
+      var heapPct=d.heap_total?Math.round(d.heap/d.heap_total*100):0;
+      var rssiPct=(d.sta&&d.rssi)?Math.max(0,Math.min(100,Math.round((d.rssi+95)/65*100))):0;
+      segBox.innerHTML = segBar('HEAP FREE', fmtBytes(d.heap||0), heapPct)
+                       + segBar('FRAGMENTATION', frag+'%', frag, 40, 70)
+                       + (d.sta ? segBar('RSSI', d.rssi+' dBm', rssiPct) : '');
+      stGrid.innerHTML =
+        stCell('Uptime', fmtUp(d.uptime_s||0)) +
+        stCell('Free heap', fmtBytes(d.heap||0)) +
+        stCell('Heap min ever', fmtBytes(d.heap_min||0)) +
+        stCell('Largest block', fmtBytes(d.heap_maxblk||0)+' ('+frag+'% frag)') +
+        stCell('Clients', 'WS '+(d.ws_clients||0)+' / AP '+(d.ap_clients||0)) +
+        stCell('Reports', d.reports||0) +
+        stCell('Log lines', d.log_total||0) +
+        stCell('Sketch free', fmtBytes(d.sketch_free||0)) +
+        stCell('STA link', d.sta ? (d.ssid+' '+d.rssi+' dBm') : 'off') +
+        stCell('IP', d.sta ? d.ip : '-');
+    }).catch(function(){ stMsg.textContent='Stats API unavailable'; });
+  }
+  $('sthead').onclick=function(){
+    stOpen=!stOpen; stBody.classList.toggle('hidden',!stOpen);
+    clearInterval(stTimer);
+    if(stOpen){ loadStats(); stTimer=setInterval(loadStats, 5000); }
+  };
+
+  // ---- shared data: cross-module store (hosts/nets) via /api/shared ----
+  var shBody=$('shbody'), shOpen=false, shTimer=null;
+  $('shhead').onclick=function(){ shOpen=!shOpen; shBody.classList.toggle('hidden',!shOpen);
+    clearInterval(shTimer); if(shOpen){ loadShared(); shTimer=setInterval(loadShared, 4000); } };
+  function shChip(txt, fn){ var b=document.createElement('button'); b.className='sec'; b.textContent=txt;
+    b.style.cssText='width:auto;padding:7px 11px;margin:4px 5px 0 0;font-size:12px'; b.onclick=fn; return b; }
+  function shHdr(t){ var d=document.createElement('div'); d.className='row hdr'; d.textContent=t; return d; }
+  function shEmpty(t){ var d=document.createElement('div'); d.className='hint'; d.style.cssText='text-align:left;margin:2px 0'; d.textContent=t; return d; }
+  function pickHost(ip){
+    // prime every target-ish input so the picked host is ready in any consumer module (no rescan)
+    ['httpurl','dnshost','tcptarget','posturl','probeval'].forEach(function(id){ var e=document.getElementById(id); if(e&&!e.value) e.value=ip; });
+    var sc=document.getElementById('scanrange'); if(sc&&!sc.value){ var p=ip.split('.'); if(p.length===4){ p[3]='0'; sc.value=p.join('.')+'/24'; } }
+    toast('picked '+ip+' → ready in Web / Net tools');
+  }
+  function loadShared(){
+    api('/api/shared').then(function(r){ return r.json(); }).then(function(d){
+      if(!d){ $('shmsg').textContent='Shared API unavailable'; return; }
+      $('shmsg').textContent='';
+      $('shsd').innerHTML = d.sd ? 'SD: <b style="color:var(--good)">mounted</b> · auto-logging by type'
+        : 'SD: <b style="color:var(--warn)">none</b> — living in RAM. Where do you expect me to store this trash?';
+      var hosts=d.hosts||[], nets=d.nets||[];
+      var hs=$('shhosts'); hs.innerHTML=''; hs.appendChild(shHdr('HOSTS ('+hosts.length+')'));
+      if(!hosts.length) hs.appendChild(shEmpty('Empty. Run Net Scan / ARP to fill the vault.'));
+      hosts.forEach(function(o){ hs.appendChild(shChip(o.ip+(o.note?' · '+o.note:''), function(){ pickHost(o.ip); })); });
+      var ns=$('shnets'); ns.innerHTML=''; ns.appendChild(shHdr('NETWORKS ('+nets.length+')'));
+      if(!nets.length) ns.appendChild(shEmpty('Empty. Run WiFi Analyzer to sniff some.'));
+      nets.forEach(function(o){ ns.appendChild(shChip(o.ssid+' · ch'+o.ch+' · '+o.rssi+'dBm', function(){ toast(o.ssid+' ('+o.enc+', ch'+o.ch+')'); })); });
+    }).catch(function(){ $('shmsg').textContent='Shared API unavailable'; });
+  }
+
+  // ---- SD Vault: mount / list sorted libraries / read (via /api/sd/*) ----
+  var sdBody=$('sdbody'), sdOpen=false, sdTimer=null;
+  $('sdhead').onclick=function(){ sdOpen=!sdOpen; sdBody.classList.toggle('hidden',!sdOpen);
+    clearInterval(sdTimer); if(sdOpen){ loadSd(); sdTimer=setInterval(loadSd, 5000); } };
+  function sdListDir(dir, box){
+    api('/api/sd/list?dir='+encodeURIComponent(dir)).then(function(r){return r.json();}).then(function(d){
+      var files=d.files||[]; box.appendChild(shHdr(dir.slice(1).toUpperCase()+' ('+files.length+')'));
+      if(!files.length){ box.appendChild(shEmpty('empty')); return; }
+      files.forEach(function(f){ box.appendChild(shChip(f, function(){ window.open(location.origin+'/api/sd/get?f='+encodeURIComponent(dir+'/'+f),'_blank'); })); });
+    }).catch(function(){});
+  }
+  function loadSd(){
+    api('/api/sd').then(function(r){return r.json();}).then(function(d){
+      if(!d){ $('sdstat').textContent='SD API unavailable'; return; }
+      $('sdstat').innerHTML=(d.mounted?'<b style="color:var(--good)">MOUNTED</b> ':'')+(d.status||'');
+      $('sdmount').classList.toggle('hidden', !!d.mounted);
+      $('sdeject').classList.toggle('hidden', !d.mounted);
+      var fb=$('sdfiles'); fb.innerHTML='';
+      if(d.mounted){ ['/hosts','/networks','/channels','/logs'].forEach(function(dir){ sdListDir(dir, fb); }); }
+    }).catch(function(){ $('sdstat').textContent='SD API unavailable'; });
+  }
+  $('sdmount').onclick=function(){ $('sdmsg').textContent='Waking the card...';
+    api('/sd/mount',{method:'POST'}).then(function(r){ if(r.status===401){ $('sdmsg').textContent='Auth required (log in with PIN)'; throw 0; } return r.json(); })
+    .then(function(d){ $('sdmsg').textContent=d.status||''; toast(d.mounted?'SD mounted':'No card found'); loadSd(); })
+    .catch(function(e){ if(e!==0) $('sdmsg').textContent='Mount request failed'; }); };
+  $('sdeject').onclick=function(){ api('/sd/unmount',{method:'POST'}).then(function(r){return r.json();})
+    .then(function(d){ $('sdmsg').textContent=d.status||''; toast('SD ejected'); loadSd(); }).catch(function(){}); };
+  $('sdrefresh').onclick=loadSd;
+  $('sdtest').onclick=function(){ $('sdmsg').textContent='Testing write+read...';
+    api('/sd/selftest',{method:'POST'}).then(function(r){ if(r.status===401){ $('sdmsg').textContent='Auth required (log in with PIN)'; throw 0; } return r.json(); })
+    .then(function(d){ $('sdmsg').textContent = (d.ok? 'Self-test OK ('+d.read+' bytes read back)' : 'Self-test FAILED (read='+d.read+') '+(d.status||''));
+      toast(d.ok?'SD read/write OK':'SD test failed'); })
+    .catch(function(e){ if(e!==0) $('sdmsg').textContent='Self-test request failed'; }); };
+
+  // ---- theme: full-colour board palettes ----
+  var thBody=$('thbody'), thOpen=false;
+  $('thhead').onclick=function(){ thOpen=!thOpen; thBody.classList.toggle('hidden',!thOpen); if(thOpen) loadThemes(); };
+  function loadThemes(){
+    api('/theme').then(function(r){return r.json();}).then(function(d){
+      var box=$('thlist'); box.innerHTML='';
+      (d.themes||[]).forEach(function(nm,i){
+        var b=document.createElement('button'); b.textContent=nm; if(i!==d.current) b.className='sec';
+        b.onclick=function(){ setTheme(i); };
+        box.appendChild(b);
+      });
+    }).catch(function(){});
+  }
+  function setTheme(i){
+    api('/theme?i='+i,{method:'POST'}).then(function(r){ if(r.status===401){ $('thmsg').textContent='Auth required (log in with PIN)'; throw 0; } return r.json(); })
+    .then(function(d){ $('thmsg').textContent='Applied: '+d.name; toast('Theme -> '+d.name); loadThemes(); })
+    .catch(function(e){ if(e!==0) $('thmsg').textContent='Theme change failed'; }); }
+
+  // ---- saved WiFi: choose which known networks auto-connect on boot ----
+  var wmBody=$('wmbody'), wmList=$('wmlist'), wmMsg=$('wmmsg'), wmOpen=false;
+  $('wmhead').onclick=function(){ wmOpen=!wmOpen; wmBody.classList.toggle('hidden',!wmOpen); if(wmOpen) loadWifi(); };
+  function loadWifi(){
+    api('/wifi/saved').then(function(r){
+      if(r.status===401){ wmMsg.textContent='Authorization required (log in with PIN above)'; throw 0; }
+      return r.json();
+    }).then(function(d){
+      wmList.innerHTML=''; var nets=d.nets||[];
+      if(!nets.length){ wmMsg.textContent='No saved networks. The board plays hard to get.'; return; }
+      wmMsg.textContent='';
+      nets.forEach(function(n){
+        var row=document.createElement('div'); row.style.cssText='display:flex;gap:6px;align-items:center;margin:5px 0';
+        var name=document.createElement('span'); name.textContent=n.ssid; name.style.cssText='flex:1;font-size:14px;word-break:break-all';
+        var auto=document.createElement('button'); auto.className='sec'; auto.style.width='auto'; auto.style.padding='6px 10px';
+        auto.textContent = n['auto'] ? 'auto: ON' : 'auto: off';
+        auto.style.color = n['auto'] ? 'var(--good)' : 'var(--dim)';
+        auto.onclick=function(){ api('/wifi/auto?i='+n.i+'&on='+(n['auto']?0:1),{method:'POST'}).then(function(){ loadWifi(); }); };
+        var x=document.createElement('button'); x.className='sec'; x.textContent='Forget'; x.style.width='auto'; x.style.padding='6px 10px';
+        x.onclick=function(){ if(confirm('Forget '+n.ssid+'?')) api('/wifi/forget?i='+n.i,{method:'POST'}).then(function(){ loadWifi(); }); };
+        row.appendChild(name); row.appendChild(auto); row.appendChild(x); wmList.appendChild(row);
+      });
+    }).catch(function(e){ if(e!==0) wmMsg.textContent='WiFi API unavailable'; });
+  }
+
+  function loadList(){
+    api('/fs/list').then(function(r){
+      if(r.status===401){ scrMsg.textContent='Authorization required (log in with PIN above)'; throw 0; }
+      return r.json();
+    }).then(function(d){
+      // category selector (first time or if the set changed)
+      var cats = d.cats || ['misc'];
+      if (scrCat.options.length !== cats.length) {
+        var keep = scrCat.value;
+        scrCat.innerHTML = '';
+        cats.forEach(function(c){
+          var o = document.createElement('option');
+          o.value = c; o.textContent = CAT_LABEL[c] || c;
+          scrCat.appendChild(o);
+        });
+        if (keep) scrCat.value = keep;
+      }
+
+      // list, GROUPED by category
+      scrList.innerHTML = '';
+      var files = d.files || [];
+      var byCat = {};
+      files.forEach(function(f){ (byCat[f.c] = byCat[f.c] || []).push(f.n); });
+      cats.forEach(function(c){
+        var arr = byCat[c];
+        if (!arr || !arr.length) return;
+        var h = document.createElement('div');
+        h.textContent = CAT_LABEL[c] || c;
+        h.style.cssText = 'font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin:10px 0 5px';
+        scrList.appendChild(h);
+        var row = document.createElement('div');
+        row.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px';
+        arr.forEach(function(n){
+          var b=document.createElement('button'); b.className='sec'; b.textContent=n;
+          b.style.width='auto'; b.style.padding='8px 12px';
+          b.onclick=function(){ scrCat.value = c; openFile(n, c); };
+          row.appendChild(b);
+        });
+        scrList.appendChild(row);
+      });
+      if(!files.length) scrMsg.textContent='No scripts yet. Teach the board a new trick.';
+    }).catch(function(e){ if(e!==0) scrMsg.textContent='FS API unavailable'; });
+  }
+
+  function openFile(f, cat){
+    scrName.value=f;
+    api('/fs/get?name='+encodeURIComponent(f)+'&cat='+encodeURIComponent(cat||curCat()))
+      .then(function(r){return r.text();})
+      .then(function(t){ scrCode.value=t; scrMsg.textContent='Loaded '+f; });
+  }
+  // Run the editor buffer immediately on the board (no upload/wire). Captures print() output.
+  $('scrrun').onclick=function(){
+    var out=$('scrout'); out.classList.remove('hidden'); out.textContent='running...';
+    api('/script/run',{method:'POST', body:scrCode.value}).then(function(r){
+      if(r.status===401){ out.textContent='Authorization required (log in with PIN above)'; return; }
+      return r.json();
+    }).then(function(d){
+      if(!d) return;
+      if(d.ok){ out.textContent = (d.out && d.out.length) ? d.out : '(ran OK, no output)'; toast('Script ran'); }
+      else    { out.textContent = 'ERROR: ' + (d.error||'unknown') + (d.out?('\n'+d.out):''); }
+    }).catch(function(){ out.textContent='Run request failed'; });
+  };
+  $('scrsave').onclick=function(){
+    var n=(scrName.value||'').trim(); if(!n){ scrMsg.textContent='Enter a name'; return; }
+    if(n.indexOf('.be')<0) n+='.be';
+    var c=curCat();
+    api('/fs/save?name='+encodeURIComponent(n)+'&cat='+encodeURIComponent(c),
+        {method:'POST', body:scrCode.value}).then(function(r){
+      if(r.status===401){ scrMsg.textContent='Authorization required (log in with PIN above)'; return; }
+      scrMsg.textContent = r.ok ? ('Saved '+c+'/'+n+' - reboot the board to see it in the menu') : 'Error';
+      if(r.ok){ loadList(); toast('Saved '+c+'/'+n); }
+    });
+  };
+  $('scrnew').onclick=function(){ scrName.value='';
+    scrCode.value="def app_draw()\n  display_clear()\n  display_text(6, 4, 'HELLO')\nend\n\ndef app_button(id)\nend\n";
+    scrMsg.textContent='New script in category: '+curCat(); };
+  $('scrdel').onclick=function(){
+    var n=(scrName.value||'').trim(); if(!n) return;
+    api('/fs/del?name='+encodeURIComponent(n)+'&cat='+encodeURIComponent(curCat())).then(function(r){
+      if(r.status===401){ scrMsg.textContent='Authorization required (log in with PIN above)'; return; }
+      scrMsg.textContent = r.ok ? 'Deleted' : 'Failed'; scrCode.value=''; loadList();
+    });
+  };
+
+  // easter egg: poke the logo (rogue hacker's tamagotchi says hi)
+  var EGG=['> access granted. probably.','root@omnidiag:~# still alive','the dolphin approves.',
+           'no packets were harmed today.','stay curious. trust no AP.','beep boop. hacker mode: on.'];
+  var eggN=0;
+  var brand=document.querySelector('header h1');
+  if(brand) brand.onclick=function(){ toast(EGG[eggN++ % EGG.length]); };
+
+  connect();
+})();
+</script>
+</body>
+</html>

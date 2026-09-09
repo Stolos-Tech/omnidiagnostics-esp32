@@ -1,19 +1,61 @@
-# PlatformIO
+# ── Build / PlatformIO (firmware) ─────────────────────────────
 .pio/
-.pioenvs/
-.piolibdeps/
+*.o
+*.a
+*.elf
+*.bin
 
-# IDE
+# ── IDE ───────────────────────────────────────────────────────
 .vscode/
 .idea/
 *.code-workspace
 
-# Build artifacts
-*.bin
-*.elf
-*.map
-*.o
+# ── Android / Gradle (app) ────────────────────────────────────
+.gradle/
+build/
+mobile/android/build/
+mobile/android/app/build/
+mobile/android/.gradle/
+mobile/android/local.properties
+*.apk
+*.aab
+# keystores / signing — НІКОЛИ
+*.keystore
+*.jks
+keystore.properties
 
-# OS
+# ── Python (server) ───────────────────────────────────────────
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# ── SECRETS — реальні конфіги НІКОЛИ (лише *.example.json у репо) ──
+config.json
+**/config.json
+*.key
+*.pem
+*.p12
+ota_ed25519.key
+.env
+.env.*
+secrets.*
+
+# ── Runtime data / logs / DB ──────────────────────────────────
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+server/logs/
+server/forklogs/
+server/board_relay.json
+gateway/gw.out
+*.json.gz
+
+# ── Claude local settings ─────────────────────────────────────
+.claude/settings.local.json
+
+# ── OS ────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
+desktop.ini
+node_modules/

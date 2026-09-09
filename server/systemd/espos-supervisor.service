@@ -1,0 +1,15 @@
+[Unit]
+Description=ESP32-OS board watchdog / force-reboot supervisor
+After=network.target espos-collector.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/espos
+ExecStart=/usr/bin/python3 /opt/espos/board_supervisor.py
+Restart=always
+RestartSec=5
+# needs serial + reboot rights
+SupplementaryGroups=dialout
+
+[Install]
+WantedBy=multi-user.target

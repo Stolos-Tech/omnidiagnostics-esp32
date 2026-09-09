@@ -1,0 +1,38 @@
+{
+  "board_url": "http://192.168.50.53",
+  "board_pin": "036163",
+  "gateway_token": "CHANGE-ME  (python3 -c \"import secrets;print(secrets.token_urlsafe(48))\")",
+  "bind_host": "100.x.y.z   (Tailscale IP; 127.0.0.1 for local test)",
+  "gateway_port": 8443,
+  "dashboard_port": 8080,
+  "collector_interval_s": 15,
+  "netscan_interval_s": 300,
+  "db_path": "/opt/espos/telemetry.db",
+  "apk_path": "/opt/espos/ota/app.apk",
+  "firmware_path": "/opt/espos/ota/firmware.bin",
+  "log_retention_days": 0,
+  "netguard": {
+    "enabled": false,
+    "enforce": false,
+    "_comment": "enabled=детект+черга допуску(Telegram-запит); enforce=примусове блокування на роутері (ТІЛЬКИ після live-тесту MAC-фільтра HG8245W5)"
+  },
+  "alerts": {
+    "enabled": true,
+    "telegram_token": "PUT-BOT-TOKEN-HERE (server-side only, gitignored)",
+    "telegram_chat": "YOUR-TELEGRAM-CHAT-ID",
+    "temp_crit_c": 70,
+    "batt_low_mv": 3400,
+    "rssi_low": -85,
+    "heap_low": 8000,
+    "offline_s": 120,
+    "cooldown_s": 1800,
+    "alert_random_mac": false,
+    "alert_join": false
+  },
+  "honeytokens": {
+    "enabled": true,
+    "cooldown_s": 300,
+    "token": "SET-A-UNIQUE-DECOY-TOKEN (виглядає як справжній креденшел; НЕ вживається легіт-кодом)",
+    "_comment": "приманки-детект компрометації; decoy-шляхи (дефолт у honeytokens.default_paths) + honey-cred; будь-який хіт -> Telegram-алерт (alerts.notify). Лише детект, нічого не блокує. paths — опційний масив для перевизначення дефолтів"
+  }
+}

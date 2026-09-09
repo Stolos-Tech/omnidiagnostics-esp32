@@ -27,5 +27,8 @@ jobs:
       - name: Install PlatformIO
         run: pip install --upgrade platformio
 
-      - name: Build firmware
-        run: pio run
+      - name: Build firmware (ESP32 T-Display)
+        run: pio run -e ttgo-t-display
+
+      - name: Run native unit tests
+        run: pio test -e native

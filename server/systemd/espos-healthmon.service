@@ -1,0 +1,13 @@
+[Unit]
+Description=ESP32-OS server health & shutdown root-cause monitor
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/espos
+ExecStart=/usr/bin/python3 /opt/espos/healthmon.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

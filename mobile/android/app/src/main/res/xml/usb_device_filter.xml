@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- USB-serial чипи плат ESP32/UNO: система запропонує відкрити додаток при під'єднанні. -->
+<resources>
+    <!-- Silicon Labs CP210x (CP2102/CP2104) -->
+    <usb-device vendor-id="4292" />
+    <!-- WCH CH34x / CH9102 -->
+    <usb-device vendor-id="6790" />
+    <!-- FTDI -->
+    <usb-device vendor-id="1027" />
+    <!-- Prolific PL2303 -->
+    <usb-device vendor-id="1659" />
+    <!-- QinHeng CH9102 (окремий VID у деяких партій) -->
+    <usb-device vendor-id="7523" />
+</resources>

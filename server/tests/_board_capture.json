@@ -1,0 +1,301 @@
+{
+ "ok": true,
+ "sysinfo": {
+  "code": 200,
+  "js": {
+   "chip": "ESP32-D0WDQ6-V3",
+   "cpu_mhz": 80,
+   "heap": 13472,
+   "heap_min": 2124,
+   "temp_c": 43.64198,
+   "temp_appx": true,
+   "uptime_s": 12282,
+   "cooling": {
+    "fan_duty": 123,
+    "state": 0
+   },
+   "modules": {
+    "wifi_sta": true,
+    "soft_ap": true,
+    "bt": false,
+    "sd": false
+   },
+   "power": {
+    "ma": 181,
+    "base": 40,
+    "backlight": 16,
+    "wifi": 125,
+    "radios": 0,
+    "sd": 0,
+    "bt": 0
+   }
+  },
+  "bytes": 302
+ },
+ "status": {
+  "code": 200,
+  "js": {
+   "sta": true,
+   "ap": true,
+   "rssi": -48,
+   "mv": 4680,
+   "usb": true
+  },
+  "bytes": 54
+ },
+ "battery": {
+  "code": 200,
+  "js": {
+   "mv": 4682,
+   "pct": 100,
+   "usb": true
+  },
+  "bytes": 32
+ },
+ "modules": {
+  "code": 200,
+  "js": {
+   "esp": {
+    "board": "ESP32 T-Display",
+    "nrf24": true,
+    "cc1101": false,
+    "sd": false,
+    "profiled": true,
+    "wifi_sta": true,
+    "soft_ap": true,
+    "bt": false
+   },
+   "uno": {
+    "board": "Arduino UNO R3",
+    "connected": false,
+    "modules": []
+   }
+  },
+  "bytes": 196
+ },
+ "netscan": {
+  "code": 200,
+  "js": {
+   "hosts": [
+    {
+     "ip": "192.168.100.37",
+     "mac": "F8:FE:5E:8A:3C:DE",
+     "vendor": "?"
+    },
+    {
+     "ip": "192.168.100.40",
+     "mac": "4C:EB:42:8B:42:73",
+     "vendor": "?"
+    },
+    {
+     "ip": "192.168.100.1",
+     "mac": "90:3F:EA:4C:28:0B",
+     "vendor": "?",
+     "gw": true
+    },
+    {
+     "ip": "192.168.100.36",
+     "mac": "6E:95:4A:C4:75:46",
+     "vendor": "?"
+    }
+   ]
+  },
+  "bytes": 272
+ },
+ "airscan": {
+  "code": 200,
+  "js": {
+   "aps": [
+    {
+     "ssid": "HUAWEI-dv7W-2G",
+     "bssid": "90:3F:EA:4C:28:14",
+     "rssi": -44,
+     "ch": 10,
+     "enc": "WPA2"
+    },
+    {
+     "ssid": "T-187642",
+     "bssid": "D6:92:5E:DC:FA:C0",
+     "rssi": -65,
+     "ch": 1,
+     "enc": "WPA2"
+    },
+    {
+     "ssid": "Hotspot",
+     "bssid": "D6:92:5E:DC:FA:C2",
+     "rssi": -65,
+     "ch": 1,
+     "enc": "WPA2-E"
+    },
+    {
+     "ssid": "UPC6098021",
+     "bssid": "34:2C:C4:67:9C:7F",
+     "rssi": -78,
+     "ch": 1,
+     "enc": "WPA2"
+    },
+    {
+     "ssid": "lmhome",
+     "bssid": "78:91:E9:ED:B5:3D",
+     "rssi": -79,
+     "ch": 9,
+     "enc": "WPA2"
+    },
+    {
+     "ssid": "UPC7734951",
+     "bssid": "AC:F8:CC:C0:9F:58",
+     "rssi": -81,
+     "ch": 1,
+     "enc": "WPA2"
+    },
+    {
+     "ssid": "[LG_Wall-Mount A/C]0806",
+     "bssid": "BA:16:5F:F8:08:06",
+     "rssi": -81,
+     "ch": 11,
+     "enc": "WPA2"
+    },
+    {
+     "ssid": "UPC5752677",
+     "bssid": "AC:F8:CC:1F:72:D6",
+     "rssi": -83,
+     "ch": 6,
+     "enc": "WPA2"
+    },
+    {
+     "ssid": "Kudy Tudy Tamtudy",
+     "bssid": "80:AF:CA:E7:DB:04",
+     "rssi": -84,
+     "ch": 8,
+     "enc": "WPA/2"
+    },
+    {
+     "ssid": "<hidden>",
+     "bssid": "82:AF:CA:A7:DB:04",
+     "rssi": -84,
+     "ch": 8,
+     "enc": "WPA2"
+    },
+    {
+     "ssid": "DIRECT-f2-HP M203 LaserJet",
+     "bssid": "42:49:0F:8A:E3:F2",
+     "rssi": -87,
+     "ch": 6,
+     "enc": "WPA2"
+    },
+    {
+     "ssid": "[LG_Wall-Mount A/C]080b",
+     "bssid": "BA:16:5F:F8:08:0B",
+     "rssi": -87,
+     "ch": 11,
+     "enc": "WPA2"
+    },
+    {
+     "ssid": "TP-Link_2FD8",
+     "bssid": "3C:52:A1:C7:2F:D8",
+     "rssi": -88,
+     "ch": 1,
+     "enc": "WPA2"
+    },
+    {
+     "ssid": "<hidden>",
+     "bssid": "3E:52:A1:E7:2F:D8",
+     "rssi": -88,
+     "ch": 1,
+     "enc": "WPA2"
+    },
+    {
+     "ssid": "UPC9900195",
+     "bssid": "B4:F2:67:3C:95:6F",
+     "rssi": -88,
+     "ch": 6,
+     "enc": "WPA2"
+    },
+    {
+     "ssid": "UPCEF388AA",
+     "bssid": "AC:22:05:F8:0A:F1",
+     "rssi": -88,
+     "ch": 6,
+     "enc": "WPA/2"
+    },
+    {
+     "ssid": "ZTE-Q9HXZ2",
+     "bssid": "70:2E:22:83:FD:C4",
+     "rssi": -90,
+     "ch": 1,
+     "enc": "WPA2"
+    },
+    {
+     "ssid": "HUAWEI-tH5u-2G",
+     "bssid": "14:89:CB:49:BB:60",
+     "rssi": -90,
+     "ch": 4,
+     "enc": "WPA2"
+    },
+    {
+     "ssid": "[LG_Wall-Mount A/C]ef9f",
+     "bssid": "BA:16:5F:F7:EF:9F",
+     "rssi": -91,
+     "ch": 11,
+     "enc": "WPA2"
+    },
+    {
+     "ssid": "FDC Kramare",
+     "bssid": "08:55:31:73:BA:D2",
+     "rssi": -93,
+     "ch": 1,
+     "enc": "WPA/2"
+    },
+    {
+     "ssid": "T-754163_EXT",
+     "bssid": "78:20:51:3B:2A:90",
+     "rssi": -93,
+     "ch": 5,
+     "enc": "WPA2"
+    },
+    {
+     "ssid": "UPC3136860",
+     "bssid": "AC:F8:CC:8D:BA:CD",
+     "rssi": -93,
+     "ch": 6,
+     "enc": "WPA2"
+    },
+    {
+     "ssid": "TP-Link_Extender",
+     "bssid": "74:FE:CE:31:0B:26",
+     "rssi": -93,
+     "ch": 6,
+     "enc": "WPA/2"
+    },
+    {
+     "ssid": "sevcikova",
+     "bssid": "78:91:E9:ED:4F:85",
+     "rssi": -94,
+     "ch": 9,
+     "enc": "WPA2"
+    }
+   ],
+   "twins": 0,
+   "open": 0,
+   "weak": 0,
+   "hidden": 2
+  },
+  "bytes": 2069
+ },
+ "devscan_ip": "192.168.100.37",
+ "devscan": {
+  "code": 200,
+  "js": {
+   "ip": "192.168.100.37",
+   "mac": "F8:FE:5E:8A:3C:DE",
+   "random_mac": false,
+   "alive": true,
+   "ports": [
+    135,
+    8080
+   ],
+   "port_labels": {
+    "135": "msrpc",
+    "8080": "http-alt"
+   },
+   "category": 

@@ -1,0 +1,14 @@
+[Unit]
+Description=ESP32-OS telemetry collector (board -> SQLite)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=__DEST__/venv/bin/python __DEST__/collector.py
+WorkingDirectory=__DEST__
+User=espos
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

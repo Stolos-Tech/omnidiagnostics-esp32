@@ -1,110 +1,138 @@
-# OmniDiagnostics-ESP32
+# esp32-os
 
-A modular, menu-driven diagnostic firmware for the **LilyGO T-Display V1.1**
-(ESP32-WROOM + ST7789 135×240). It provides passive RF environment surveys and
-on-device system telemetry through a small finite-state-machine "micro-OS".
+Модульна операційна система для LilyGO TTGO T-Display (ESP32-WROOM-32).
+Ядро на C++ (PlatformIO) з вбудованим інтерпретатором **Berry** для
+застосунків-скриптів.
 
-> **Scope:** this is a *passive, receive-only* survey and own-device diagnostic
-> tool. It scans and displays what is already being broadcast and connects only
-> to devices the user explicitly selects. It does **not** implement any active
-> radio attacks (no deauthentication, jamming, frame injection, spam, handshake
-> cracking, or replay).
+## Збірка й прошивка
 
-## Features
-
-| App | Status | Description |
-|-----|--------|-------------|
-| 802.11 Auditor | working | Passive 2.4 GHz scan; per-network detail (SSID, BSSID, RSSI, channel, encryption, hidden flag). |
-| BLE Auditor | working | Passive BLE advertisement scan (MAC, name, RSSI, iBeacon/Eddystone); connect to a selected device and read its GATT service count. |
-| Network (WiFi) | working | Connect to a configured WiFi network in station mode; shows status, IP and RSSI. |
-| System Dashboard | working | Battery voltage/%, free heap, die temperature, uptime. |
-| RF Sub-1GHz | stub | Passive sub-GHz monitoring; requires an external CC1101 (868 MHz). |
-| IR Analyzer | stub | IR capture/replay; requires `IRremoteESP8266` and an IR LED. |
-
-## Hardware
-
-- **Board:** LilyGO T-Display V1.1 (ESP32-WROOM, 4 MB flash, ST7789 135×240).
-- **Input:** two on-board buttons (GPIO0 = OK/Back, GPIO35 = Next).
-- **Power:** USB-C, or a Li-Po cell via the board's JST connector.
-
-See [docs/HARDWARE.md](docs/HARDWARE.md) for the full pin map and optional
-peripherals.
-
-## Quick start
-
-This is a [PlatformIO](https://platformio.org/) project.
-
-```bash
-# build
-pio run
-
-# flash (close any open serial monitor first to free the port)
-pio run -t upload
-
-# serial monitor
-pio device monitor
+```sh
+pio run                      # компіляція прошивки
+pio run -t upload            # прошивка плати по USB
+pio run -t uploadfs          # заливка data/ у LittleFS (скрипти /apps/*.be, web/)
+pio test -e native           # юніт-тести логіки на хості (без заліза)
+pio device monitor           # Serial 115200
 ```
 
-The display pin mapping and ST7789 driver are configured in `platformio.ini`
-via `build_flags`, so you do **not** need to edit TFT_eSPI's `User_Setup.h`.
+Прошивка (`upload`) і файлова система (`uploadfs`) заливаються **окремо**:
+щоб додати чи змінити `.be`-скрипт, досить `uploadfs` — перепрошивати
+основну прошивку не треба.
 
-Full build, flashing and troubleshooting notes are in
-[docs/BUILD.md](docs/BUILD.md).
-
-## Repository layout
+## Структура
 
 ```
-omnidiagnostics-esp32/
-├── platformio.ini         # board, build flags (TFT pins), dependencies
-├── include/
-│   └── config.h           # pin map, theme colors, input timing, WiFi creds
-├── src/
-│   ├── main.cpp           # app registration + setup/loop
-│   ├── core/              # kernel, input, display, list widget, app base
-│   └── apps/              # WiFi, BLE, Network, Dashboard, IR/RF stubs, menu
-└── docs/                  # architecture, build, hardware, app reference
+src/
+  main.cpp            — точка входу, головний цикл ядра
+  kernel/             — лаунчер, черга подій, App-інтерфейс, живлення, хост скриптів
+  drivers/            — дисплей, кнопки, АЦП батареї, LittleFS
+  berry_bridge/       — Berry VM + міст нативних функцій
+  apps_builtin/       — вкомпільовані застосунки (battery-diag, berry-demo)
+lib/berry/            — інтерпретатор Berry (вендорено) + coc-таблиці
+data/apps/*.be        — застосунки-скрипти (заливаються через uploadfs)
+data/web/index.html   — сторінка віддаленого керування (Фаза 4b)
+test/native/          — юніт-тести (pio test -e native)
 ```
 
-## Documentation
+Керування (поточно — рідні кнопки плати):
+**права (GPIO35)** — гортати меню / наступна сторінка,
+**ліва (GPIO0)** — короткий тап = вибір / дія,
+**довге утримання лівої (~0.6с)** — універсальний «назад» у лаунчер з будь-якого застосунку.
+Позиція в меню зберігається між перезавантаженнями (NVS).
 
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — micro-OS design, app lifecycle, how to add an app.
-- [docs/BUILD.md](docs/BUILD.md) — toolchain setup, build/flash, troubleshooting.
-- [docs/HARDWARE.md](docs/HARDWARE.md) — pin map, display configuration, optional peripherals.
-- [docs/APPS.md](docs/APPS.md) — per-app behaviour and controls.
+## Застосунок-скрипт (.be)
 
-## Configuration
+Скрипт кладеться в `data/apps/<name>.be` і після `uploadfs` з'являється
+пунктом меню з іменем `<name>`. Кожен скрипт реалізує два глобальні методи:
 
-Edit `include/config.h` to set WiFi credentials for the Network app:
+```berry
+# data/apps/hello.be
 
-```c
-#define WIFI_SSID  "your-ssid"
-#define WIFI_PASS  "your-password"
+def app_draw()
+  display_clear()
+  display_text(6, 4, 'HELLO')
+  var v = adc_read_battery()
+  display_text(8, 40, 'VBAT: ' + str(int(v * 1000)) + ' mV')
+  display_text(8, 116, 'LEFT = exit')
+end
+
+def app_button(id)
+  # id: S1..S5 == 0..4. Вихід (ліва кнопка) обробляє ядро.
+end
 ```
 
-Leave them empty to disable the connect attempt (the app shows "No SSID set").
+### Нативний API, доступний зі скриптів
 
-## Dependencies
+| Функція                          | Опис                                        |
+|----------------------------------|---------------------------------------------|
+| `display_clear()`                | очистити екран (спрайт)                      |
+| `display_text(x, y, s [, color])`| текст у позиції; color — RGB565, типово білий|
+| `adc_read_battery()`             | напруга батареї, вольти (float)              |
+| `button_pressed()`               | id кнопки з черги (0..4) або -1              |
+| `display_rect(x,y,w,h,color)`    | контур прямокутника (RGB565)                 |
+| `display_fill_rect(x,y,w,h,color)`| залитий прямокутник (смуги/прогрес)         |
+| `millis()`                       | час від старту, мс (int)                     |
+| `free_heap()` / `heap_total()`   | вільна / загальна памʼять, байти             |
+| `sys_temp()`                     | температура чипа, °C (int)                   |
+| `cpu_mhz()`                      | частота CPU, МГц (int)                        |
+| `gpio_mode(pin,mode)`            | 0=input, 1=output, 2=input_pullup            |
+| `gpio_write(pin,val)` / `gpio_read(pin)` | цифровий вивід / ввід               |
+| `i2c_probe(addr)`                | чи відповідає I2C-пристрій (bool)            |
+| `i2c_read8(addr,reg)` / `i2c_write8(addr,reg,val)` | I2C регістр (байт)         |
+| `wifi_rssi()` / `wifi_ip()`      | сила сигналу dBm (int) / IP (string)         |
+| `dns_resolve(host)`              | резолв імені -> IP-рядок ("" fail)           |
+| `ping(host)`                     | ICMP RTT у мс (int, -1 fail)                 |
+| `tcp_probe(host,port)`           | чи приймає TCP-порт (bool)                   |
+| `http_get(url)` / `http_body()`  | HTTP GET -> код статусу (int); тіло (string) |
+| `arp_count()`                    | к-ть записів у знімку ARP-кешу (int)         |
+| `arp_ip(i)` / `arp_mac(i)`       | IP / MAC i-го запису знімка (string)         |
 
-Managed automatically by PlatformIO (`lib_deps` in `platformio.ini`):
+### Бібліотека скриптів (категорії за модулями)
 
-- [TFT_eSPI](https://github.com/Bodmer/TFT_eSPI) — display driver.
-- [NimBLE-Arduino](https://github.com/h2zero/NimBLE-Arduino) — lightweight BLE stack.
+Скрипти живуть у `/apps/<категорія>/*.be` на LittleFS. Категорії відповідають
+модулям ОС: `system`, `net`, `gpio`, `misc`. Файли просто в `/apps/*.be`
+(стара розкладка) читаються як `misc` — сумісність збережена.
 
-## Continuous integration
+Редактор у веб-інтерфейсі (картка **Scripts**) має вибір модуля при збереженні
+й показує список, згрупований за категоріями. Збережений скрипт зʼявляється
+в меню плати після перезавантаження.
 
-A GitHub Actions workflow (`.github/workflows/build.yml`) builds the firmware
-with PlatformIO on every push and pull request. After pushing to GitHub you can
-add a status badge by uncommenting and editing this line (replace `<owner>`):
+Приклади: `system/sysinfo.be`, `system/monitor.be` (смуги heap/батареї на Berry),
+`net/rssi.be` (графік сили сигналу), `net/probe.be` (dns/ping/tcp/http/arp зі скрипта),
+`misc/battery.be`.
 
-```md
-<!-- ![build](https://github.com/<owner>/omnidiagnostics-esp32/actions/workflows/build.yml/badge.svg) -->
-```
+Рядки на екрані — лише ASCII (шрифти TFT_eSPI не рендерять кирилицю).
 
-## Contributing
+### Обробка помилок
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). Issue and pull-request templates live in
-`.github/`. Note the project scope: passive / receive-only and own-device only.
+Синтаксична чи runtime-помилка в скрипті не рушить систему: застосунок
+показує `Script error` / `Runtime error` з текстом, ліва кнопка повертає
+в лаунчер. Приклад битого скрипта — `data/apps/broken.be`.
 
-## License
+## Дорожня карта
 
-MIT — see [LICENSE](LICENSE).
+- [x] Фаза 0 — міграція на PlatformIO
+- [x] Фаза 1 — каркас ОС (лаунчер + battery-diag як App)
+- [x] Фаза 2 — інтеграція Berry (VM + нативний міст)
+- [x] Фаза 3 — LittleFS + завантаження застосунків з флешу
+- [x] Фаза 4 — віддалене керування (WiFi + Bluetooth Classic, спільний протокол + PIN)
+- [x] Фаза 5 — WiFi-менеджер + ввід тексту з телефона
+- [x] Діагностика — System, Net Info, Net Scan, mDNS, HTTP GET/POST, DNS Lookup, TCP Terminal
+
+## Віддалене керування (Фаза 4)
+
+Пункти меню **"Remote: WiFi"** і **"Remote: BT"** вмикають віддалений режим
+(активний лише один за раз — увімкнення одного гасить інший). На екрані плати
+показується 6-значний PIN. Перше повідомлення клієнта завжди `{"pin":"..."}`;
+до автентифікації інші команди ігноруються, після 5 невдалих спроб — розрив.
+
+- **WiFi**: точка `OmniDiag-Setup` захищена WPA2-паролем (8 символів, генерується
+  заново щоразу як PIN — обидва показуються на екрані плати). Під'єднайся з цим
+  паролем, відкрий `http://192.168.4.1`, введи PIN — веб-сторінка дзеркалить
+  меню й дає кнопки. `/fs/*` (читання/запис/видалення .be-скриптів) вимагає
+  тієї самої PIN-авторизації через WS; `/api/*` лишається відкритим (read-only).
+- **Bluetooth**: спаруй пристрій `OmniDiag`, під'єднайся будь-яким
+  "Bluetooth Terminal", надішли `{"pin":"123456"}`, потім `{"btn":"S1"}` тощо.
+
+Кастомна таблиця розділів `partitions_esp32os.csv` (без OTA, ~2.75MB app) —
+бо WiFi + Bluetooth + Berry не влазять у дефолтні 1.3MB. **Після зміни таблиці
+розділів обов'язково `upload` І `uploadfs`.**

@@ -1,0 +1,11 @@
+# OTA table for WiFi->SD updates (phase 2). factory = small updater (writes ota_0 from SD),
+# ota_0 = main app, smaller spiffs. Main app now lives at 0xC0000 -> when USB-flashing the
+# main app, use offset 0xC0000 (updater stays at 0x10000). Switching to this table = a FULL
+# USB reflash (bootloader+parttable+updater+app). ASCII-only: PlatformIO reads this as cp1252.
+# Name,     Type, SubType,  Offset,   Size,     Flags
+nvs,        data, nvs,      0x9000,   0x5000,
+otadata,    data, ota,      0xe000,   0x2000,
+factory,    app,  factory,  0x10000,  0xB0000,
+ota_0,      app,  ota_0,    0xC0000,  0x260000,
+spiffs,     data, spiffs,   0x320000, 0xD0000,
+coredump,   data, coredump, 0x3F0000, 0x10000,

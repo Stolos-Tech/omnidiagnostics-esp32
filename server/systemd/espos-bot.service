@@ -1,0 +1,14 @@
+[Unit]
+Description=ESP32-OS emergency Telegram control bot
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/espos
+ExecStart=/usr/bin/python3 /opt/espos/emergency_bot.py
+Restart=always
+RestartSec=8
+SupplementaryGroups=dialout
+
+[Install]
+WantedBy=multi-user.target
