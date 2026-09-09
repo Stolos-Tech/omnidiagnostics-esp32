@@ -56,7 +56,7 @@ class MainViewModel : ViewModel() {
     var lang by mutableStateOf(Lang.EN)
     fun toggleLang() { lang = if (lang == Lang.UK) Lang.EN else Lang.UK }
     private fun tr(uk: String, en: String) = if (lang == Lang.UK) uk else en
-    var host by mutableStateOf("netprobe.local"); var pin by mutableStateOf("036163")   // mDNS-дефолт: переживає зміну DHCP-IP + чиста установка одразу знаходить плату
+    var host by mutableStateOf("netprobe.local"); var pin by mutableStateOf("")   // mDNS-дефолт: переживає зміну DHCP-IP + чиста установка одразу знаходить плату
     // gateway-режим: доступ до плати з будь-якої мережі через шлюз (Tailscale). PIN схований на сервері.
     var useGateway by mutableStateOf(false)
     // USB-режим: керування платою по OTG-кабелю (провідний канал — плата не відпадає під час аналізу).

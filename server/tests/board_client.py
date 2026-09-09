@@ -12,7 +12,7 @@ except Exception:
 
 PORT = os.environ.get("ESPOS_PORT", "COM5")
 BAUD = 115200
-PIN = os.environ.get("ESPOS_PIN", "036163")
+PIN = os.environ.get("ESPOS_PIN", "")
 
 
 class BoardUnavailable(Exception):

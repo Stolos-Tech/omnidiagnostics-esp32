@@ -4,7 +4,7 @@ import sys
 from espos_client import EspOsClient
 
 host = sys.argv[1] if len(sys.argv) > 1 else "192.168.50.53"
-pin = sys.argv[2] if len(sys.argv) > 2 else "036163"
+pin = sys.argv[2] if len(sys.argv) > 2 else ""
 c = EspOsClient(host)
 
 print(f"=== ESP32-OS mobile client demo @ {host} ===\n")

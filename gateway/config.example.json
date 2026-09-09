@@ -1,6 +1,6 @@
 {
   "board_url": "http://192.168.50.53",
-  "board_pin": "036163",
+  "board_pin": "YOUR-BOARD-PIN",
   "gateway_token": "CHANGE-ME-to-a-long-random-secret-64+chars",
   "bind_host": "100.x.y.z  (your Tailscale IP; use 127.0.0.1 for local test)",
   "bind_port": 8443

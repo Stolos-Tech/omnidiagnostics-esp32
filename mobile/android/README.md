@@ -9,7 +9,7 @@
    IDE сама згенерує gradle-wrapper і синхронізує залежності.
 2. Або CLI: `gradle wrapper` (раз), потім `./gradlew :app:assembleDebug`.
 3. Запуск на телефоні (в одній WiFi з платою або на її точці `OmniDiag-Setup`):
-   ввести Host (напр. `192.168.50.53`) + PIN (`036163`) → **Connect**.
+   ввести Host (напр. `192.168.50.53`) + PIN (`<PIN>`) → **Connect**.
 
 > ⚠️ Не компілювалось у цій сесії (тут нема Android SDK) — це робочий скелет,
 > перевіряй/доводь у Android Studio. Клієнтський шар (`EspOsClient`) — порт із

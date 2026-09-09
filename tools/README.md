@@ -10,7 +10,7 @@ import sys; sys.path.insert(0, "tools")
 from esp_ws import WS
 
 w = WS("192.168.50.53")          # IP плати в домашній мережі
-w.send({"pin": "036163"})          # PIN з екрана плати
+w.send({"pin": "<PIN>"})          # PIN з екрана плати
 print(w.recv_json(lambda m: "page" in m))
 
 w.send({"back": True})             # у лаунчер
